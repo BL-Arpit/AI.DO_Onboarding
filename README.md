@@ -1,3 +1,13 @@
+## Single-window chat UI · AIDO design
+
+The frontend follows the supplied `aido-chat.zip` design: dark surfaces, a 264px sidebar, compact header, purple accents and rounded composer. Mobile conversations open in a drawer. The supplied logo is reused. The onboarding backend and local ANN remain the application engine.
+
+Week 1 opens in a minimal dark chat. Start a conversation, use **Add person**, **Upload Excel**, or **People**, or type a request. Attach or drag documents into the same window. Choose a person before uploading identity documents. Extracted fields, corrections, audit results and Excel previews appear inline. Confirm before saving or importing.
+
+**New chat** creates an independent intake draft. One conversation can cover one person or several people. Switch between conversations in the sidebar. Transcripts are held only in this browser tab and clear on reload; saved employee records remain available under People. Drafts are isolated on the server per signed-in user and conversation. This is not a durable chat-history service.
+
+Tesseract remains local: no Gemini key is needed. Set `GEMINI_EXTRACTION_FALLBACK_ENABLED=false` and the installed executable path in `vendor/advo/.env`. Set `OCR_REQUEST_TIMEOUT_SECONDS=20` if your existing `.env` still contains `2.0`, then restart ADVO. PAN OCR now reads a sparse-text view as well as block-text views. Accuracy still depends on the scan; confirm extracted fields in chat. This changes OCR processing, not the installed Tesseract version.
+
 # Onboarding: one repository, three branches
 
 The checkout starts on **week-1**. There are no separate weekly application folders.

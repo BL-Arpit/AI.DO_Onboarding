@@ -147,13 +147,14 @@ def confirm_import(iid: str,user=Depends(current_user)):
 
 class ChatInput(BaseModel):
     message: str=Field(min_length=1,max_length=2000)
+    conversation_id: str=Field(default='default',pattern=r'^[a-zA-Z0-9_-]{1,64}$')
     employee_id: str | None=None
     version: int | None=None
     note: str=Field(default='',max_length=2000)
 
 @app.post('/api/chat')
 def chat(body: ChatInput,user=Depends(current_user)):
-    return route_message(body,user,verify)
+    return route_message(body,{**user,'conversation_key':user['id']+':'+body.conversation_id},verify)
 
 @app.post('/api/employees/{eid}/documents')
 def upload_document(eid: str,file: UploadFile=File(...),user=Depends(current_user)):
@@ -241,3 +242,7 @@ if STAGE>=3:
         require(user,('owner',))
         from .notifications import run_outbox
         return run_outbox()
+
+@app.get('/favicon.svg',include_in_schema=False)
+def favicon():
+    return FileResponse(Path(__file__).parent/'static'/'favicon.svg',media_type='image/svg+xml')

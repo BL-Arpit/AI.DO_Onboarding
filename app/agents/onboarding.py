@@ -28,12 +28,12 @@ def parse_details(text):
     return result
 
 def onboarding_agent(db,user,text,intent):
-    row=db.execute('SELECT state FROM conversations WHERE user_id=?',(user['id'],)).fetchone()
+    row=db.execute('SELECT state FROM conversations WHERE user_id=?',(user.get('conversation_key',user['id']),)).fetchone()
     state=json.loads(row['state']) if row else None
     lower=text.lower().strip()
     start=intent=='add_person'
     if intent=='cancel':
-        db.execute('DELETE FROM conversations WHERE user_id=?',(user['id'],))
+        db.execute('DELETE FROM conversations WHERE user_id=?',(user.get('conversation_key',user['id']),))
         return {'reply':'Cancelled.','action':'cancel'}
     if not state and not start:return None
     can_add(user)
@@ -48,7 +48,7 @@ def onboarding_agent(db,user,text,intent):
         person,issues=clean_person(state['person'])
         if issues:return {'reply':' '.join(issues),'person':person}
         result=intake_agent(db,person,user,'chat')
-        db.execute('DELETE FROM conversations WHERE user_id=?',(user['id'],))
+        db.execute('DELETE FROM conversations WHERE user_id=?',(user.get('conversation_key',user['id']),))
         return {'reply':'Added '+person['name']+'.','action':'added','employee_id':result['id'],
                 'invitation_url':result['invitation_url']}
     else:
@@ -67,7 +67,7 @@ def onboarding_agent(db,user,text,intent):
             details={k:v for k,v in details.items() if k!='name' or missing[0]=='name'}
         state['person'].update(details)
     db.execute('INSERT INTO conversations VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET state=excluded.state',
-               (user['id'],json.dumps(state)))
+               (user.get('conversation_key',user['id']),json.dumps(state)))
     missing=[key for key in REQUIRED if not state['person'].get(key)]
     if missing:return {'reply':{'name':'What is the person’s full name?','email':'What is their email address?',
                                 'phone':'What is their phone number?'}[missing[0]],'action':'collect'}

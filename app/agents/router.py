@@ -22,7 +22,7 @@ def route_message(body,user,verify):
         return {**result,'chat_model':prediction,'agent_trace':trace+[agent]}
     with connection() as db:
         db.execute('BEGIN IMMEDIATE')
-        row=db.execute('SELECT state FROM conversations WHERE user_id=?',(user['id'],)).fetchone()
+        row=db.execute('SELECT state FROM conversations WHERE user_id=?',(user.get('conversation_key',user['id']),)).fetchone()
         state=json.loads(row['state']) if row else {}
         if STAGE>=2 and (intent in ('add_user','change_role') or state.get('kind') in ('user','role')):
             from ..roles import role_chat
