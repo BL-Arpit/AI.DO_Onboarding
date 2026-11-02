@@ -42,7 +42,7 @@ TESSERACT_PATH = os.getenv(
     "",
 )
 GEMINI_EXTRACTION_FALLBACK_ENABLED = os.getenv(
-    "GEMINI_EXTRACTION_FALLBACK_ENABLED", "true"
+    "GEMINI_EXTRACTION_FALLBACK_ENABLED", "false"
 ).strip().lower() in {"1", "true", "yes", "on"}
 # The Gemini API rejects explicitly configured deadlines below 10 seconds.
 # Clamp older local `.env` values so fallback requests remain valid.
