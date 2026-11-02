@@ -47,8 +47,8 @@ Workflow tests mock document extraction and SMTP delivery; model inference is re
 No real employee workbook, document or private chat history is used for training.
 The optional audit model is separate from the trained local chat ANN.
 
-Not executed: Docker build/run, visual browser acceptance, live SMTP, live optional
-audit-model endpoint, authoritative government/background/DL checks. These still
+Not executed: Docker build/run, live SMTP, live optional audit-model endpoint,
+authoritative government/background/DL checks. These still
 need deployment-specific acceptance. No provider authentication or document
 accuracy certification is implied by the passing tests.
 
