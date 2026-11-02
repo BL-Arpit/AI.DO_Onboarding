@@ -1,0 +1,1 @@
+Extraction-only subset of the supplied ADVO project. Unrelated classification, legacy APIs, handlers and deployment variants were removed. OCR/extractors/validators are retained. Gemini fallback remains optional and disabled by default. The three retained upstream test modules exercise this path.

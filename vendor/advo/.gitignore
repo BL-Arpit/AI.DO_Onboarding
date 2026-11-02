@@ -1,0 +1,51 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# PyCharm
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Secrets
+.env
+
+# Local/private document images
+tests/data/pan_sample.png
+tests/data/aadhaar_sample.png
+tests/data/passbook_sample.png
+tests/data/Passbook.webp
+tests/data/cancelled_cheque_sample.png
+tests/data/processed_sample.png
+
+# Local OCR experiments using private images
+tests/test_pan_ocr_experiment.py
+tests/test_aadhaar_ocr_experiment.py
+tests/test_passbook_ocr_experiment.py
+tests/test_passbook_rotated_ocr_experiment.py
+tests/test_passbook_selected_ocr.py
+tests/test_passbook_high_resolution_ocr.py
+tests/test_passbook_upright_ocr.py
+tests/test_cancelled_cheque_ocr_experiment.py
+
+# Local pipelines using private images
+tests/test_pipeline.py
+tests/test_aadhaar_pipeline.py
+tests/test_passbook_pipeline.py
+tests/test_cancelled_cheque_pipeline.py
+
+# Additional local/private document files and OCR outputs
+tests/data/Pan_Sample.jpg
+tests/data/aadhaar_sample
+tests/data/passbook_sample
+tests/data/cancelled_cheque_sample
+tests/data/ocr_variants/
+.vercel
+.env*
+!.env.example

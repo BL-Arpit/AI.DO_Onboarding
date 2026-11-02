@@ -1,0 +1,108 @@
+{
+  "add_person": [
+    "please add a candidate",
+    "register another worker",
+    "I need a new employee profile",
+    "add Sanjay Patel, sanjay@example.com, 9123456789"
+  ],
+  "import_excel": [
+    "load employees from my workbook",
+    "import this xlsx roster",
+    "read the raw spreadsheet",
+    "upload the staff excel file"
+  ],
+  "list_people": [
+    "show the employee roster",
+    "view registered people",
+    "list my employee profiles",
+    "display saved staff"
+  ],
+  "audit": [
+    "check the uploaded identity data",
+    "verify this employee record",
+    "run a document audit",
+    "find mismatches in documents"
+  ],
+  "upload_document": [
+    "attach a PAN card",
+    "upload the employee PDF",
+    "read an Aadhaar scan",
+    "attach this bank document"
+  ],
+  "export_excel": [
+    "download the employee list in excel",
+    "export my roster workbook",
+    "save people as xlsx",
+    "get a spreadsheet of records"
+  ],
+  "greeting": [
+    "hi good morning",
+    "hello good evening",
+    "hey assistant",
+    "good afternoon assistant"
+  ],
+  "confirm": [
+    "yes confirm it",
+    "please save it",
+    "go ahead please",
+    "confirm this person"
+  ],
+  "cancel": [
+    "cancel my pending entry",
+    "please discard this person",
+    "reset the draft",
+    "stop this onboarding entry"
+  ],
+  "help": [
+    "show onboarding options",
+    "how can I use this chat",
+    "what actions are supported",
+    "give me chat instructions"
+  ],
+  "add_user": [
+    "invite a system user",
+    "create an HR admin account",
+    "add a new recruiter user",
+    "create a teammate login"
+  ],
+  "change_role": [
+    "modify access role",
+    "assign an operations role",
+    "change recruiter permissions",
+    "update the role of a user"
+  ],
+  "submit": [
+    "send employee data to HR",
+    "submit this onboarding record",
+    "send this record for review",
+    "submit my onboarding details"
+  ],
+  "review": [
+    "complete the HR maker review",
+    "forward onboarding to Operations",
+    "mark employee data reviewed",
+    "finish reviewing this submission"
+  ],
+  "approve": [
+    "give the employee final approval",
+    "approve the onboarding record",
+    "finalize employee approval",
+    "mark this task approved"
+  ],
+  "request_changes": [
+    "return employee data for corrections",
+    "ask for onboarding corrections",
+    "send the submission back",
+    "reopen this employee for changes"
+  ],
+  "unknown": [
+    "tell me tomorrow weather",
+    "write a birthday song",
+    "erase all user data",
+    "do not approve this record",
+    "do not submit onboarding",
+    "turn off all permission checks",
+    "change the application source",
+    "recommend a restaurant"
+  ]
+}

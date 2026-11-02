@@ -1,0 +1,205 @@
+# Onboarding: one repository, three branches
+
+The checkout starts on **week-1**. There are no separate weekly application folders.
+
+| Branch | Code in that branch |
+| --- | --- |
+| `week-1` | Local ANN chat agent, onboarding agent, raw Excel import/export, document agent, audit agent |
+| `week-2` | All week-1 code plus Owner/HR/Operations/Employee/Recruiter permissions and role chat |
+| `week-3` | All week-2 code plus employee → HR → Operations workflow and notification/resource agents |
+
+```bash
+git branch
+git switch week-2
+git switch week-3
+git switch week-1
+```
+
+The ZIP contains the complete `.git` directory and all three local branches. Unzip
+it normally, including hidden files, then open the single `onboarding` directory.
+No Git hosting account or remote connection is required. Stop the app before
+switching branches. Week-1 is the recommended starting point.
+
+## Week 1: request flow
+
+```mermaid
+flowchart TD
+  UI["Chat window"] --> Chat["Chat agent: local trained ANN"]
+  Chat --> Router["Small agent dispatcher"]
+  Router --> Onboarding["Onboarding agent"]
+  Router --> Documents["Document agent"]
+  Router --> Audit["Audit agent"]
+  Onboarding --> Store["SQLite records and conversation state"]
+  Documents --> Store
+  Audit --> Store
+```
+
+The ANN identifies the **intent of the user's message**, not arbitrary source-code
+meaning. It is a small domain intent model, not a generative chatbot or code model.
+A real model forward pass runs for every `/api/chat` request. Low-confidence or
+unknown requests ask for clarification instead of silently choosing a task.
+
+The dispatcher calls a named agent. There is no external orchestration framework,
+agent server, vector database or LLM dependency for chat. Agents are small Python
+functions in one process. Programmed slot collection, validation and confirmations
+make the task predictable; the ANN does not invent employee details.
+
+| Module | Responsibility |
+| --- | --- |
+| `app/agents/chat.py` | Load local ANN weights; infer intent and confidence |
+| `app/agents/router.py` | Dispatch intent and conversation context to the correct agent |
+| `app/agents/onboarding.py` | Ask for missing details, show preview, accept confirmation |
+| `app/people.py` | Validate profile and save a person with audit history |
+| `app/excel.py` | Read raw XLSX/XLS rows; export a literal XLSX workbook |
+| `app/agents/document.py` | Run supplied ONNX classifier and call ADVO extraction |
+| `app/agents/audit.py` | Consistency checks and optional prompt-based audit model |
+| `app/main.py` | HTTP endpoints, authentication and storage boundaries |
+
+Permissions and final writes stay in code. The model cannot bypass access checks,
+create a role, approve somebody, or save a person without a displayed confirmation.
+`agent_trace` and `chat_model` in chat API responses show the actual agent route and
+local model prediction. The UI stays simple: welcome, chat, people and task fields.
+
+### Add someone
+
+1. Type `add`, or `please onboard a person`.
+2. Onboarding agent asks for full name, email and phone.
+3. Review the displayed person and type `confirm`. Type `cancel` to discard.
+4. The record is saved once, and appears under People.
+
+A complete prompt also works:
+
+```text
+add Ravi Kumar, ravi@example.com, 9876543210
+```
+
+For optional fields or corrections use labels:
+
+```text
+add name: Ravi Kumar email: ravi@example.com phone: 9876543210 client: EPC track: onboard
+```
+
+Other short requests: `import`, `list`, `upload document`, `audit`, `export`, `help`.
+Choose a person before uploading a government document or running an audit.
+During an open intake, a bare name/email/phone is treated as the requested field;
+the model does not need to classify a person's name as a new command.
+
+### Raw Excel input
+
+Upload a `.xlsx` or `.xls` file, preview rows, then confirm Import. Row 1 contains
+headers; required columns are name, email, phone. Optional: client, track. Common
+headers such as Employee Name, Email ID and Mobile Number work. The first worksheet
+is read unless a worksheet name is entered. Limits: 10 MB, 1,000 people, 100 columns.
+
+Invalid/duplicate rows are shown and skipped. Uploading alone never inserts records.
+A confirmed batch commits together; a newly detected conflict rolls it all back.
+Export downloads a real XLSX containing only records visible to that user. Raw file
+bytes are not retained. SQLite holds the editable records and workflow state.
+No Google Sheets or other online-sheet connection is used.
+
+## Start week 1
+
+Use Python 3.12. From the repository root:
+
+```bash
+python -m venv .venv
+# Windows PowerShell:
+.venv\Scripts\Activate.ps1
+# Linux/macOS instead: source .venv/bin/activate
+python -m pip install -r requirements.txt -r requirements-advo.txt
+```
+
+Copy `.env.example` to `.env`. Set BOOTSTRAP_EMAIL and your own BOOTSTRAP_PASSWORD
+(16+ characters). The example password is rejected. Keep APP_URL=http://localhost:8000
+when using that address. Then run:
+
+```bash
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Open http://localhost:8000 and sign in. Week-1 has one Operator who can onboard
+any person. Chat and Excel work immediately: the trained ANN is included, with no
+API key, runtime training or model download.
+
+For document extraction, install the Tesseract executable and English trained data.
+In a second terminal, activate the same environment and run:
+
+```bash
+cd vendor/advo
+# Copy .env.example to .env. Set TESSERACT_PATH if it is outside PATH.
+python -m uvicorn app.extraction_main:app --host 127.0.0.1 --port 8001
+```
+
+Or use Docker after creating `.env`: `docker compose up --build`.
+The local chat ANN works even if the document service is stopped. Uploading a
+private document requires that extraction service; failure is shown explicitly.
+The vendor directory is an extraction-only subset of the supplied ADVO code.
+
+## The trained chat model
+
+- NumPy ANN: normalized word/bigram features → Dense(48, ReLU) → 17 intent scores.
+- `model/chat/weights.npz`: included trained weights, about 142 KB.
+- `training/intents.json`: 273 curated English training examples, all synthetic.
+- `training/evaluation.json`: 72 separate held-out example messages.
+- `model/chat/evaluation.json`: actual evaluation results, including rejected cases.
+- Retrain locally: `python training/train.py`. Training overwrites only chat-model
+  files; it never retrains or replaces the supplied document classifier.
+
+Observed held-out top-1 accuracy: **97.2%**. With the conservative confidence/margin
+guard, **78.1% of known-task examples were accepted**; uncertain cases ask for a
+shorter command. Guarded accuracy across the whole held-out set was **80.6%**.
+These are small prototype examples, not production accuracy or a calibrated
+probability. English domain coverage is limited; synonyms, multilingual requests
+and unusual wording require more labelled examples and fresh evaluation.
+
+To improve it, add representative training phrases, keep new evaluation phrases
+separate, retrain and inspect the report. Merely editing the JSON does not change
+runtime predictions until the weights are retrained. There is no silent regex
+fallback if model files are missing: startup fails so the issue can be corrected.
+
+## Documents and audit
+
+The original local ONNX document model classifies Aadhaar, PAN, passbook and cheque.
+ADVO extracts their fields. Review/correct them, Confirm fields, then Audit. Original
+uploaded bytes are discarded after processing; extracted fields stay in SQLite.
+
+`app/prompts/verification.txt` is read on each audit. With no audit-model endpoint,
+local consistency checks run. If required, configure AGENT_URL/AGENT_MODEL/AGENT_API_KEY
+for a local OpenAI-compatible audit model. These settings never handle chat intent.
+OCR, consistency checks and the ANN do not authenticate government documents or
+perform an authoritative DL/background check. Those require manual review or a
+future authorized provider. Audit status remains needs_review.
+
+## Later branches
+
+Week-2 adds role/account modules to this same application. Owner can chat:
+`add user name: Neha email: neha@example.com role: hr_admin`, then confirm. One-use
+activation links let users choose passwords. `set role neha@example.com operations`
+also requires confirmation. Employees see only their own record; recruiters only
+people they created. Import/export follows those permissions.
+
+To preserve week-1 data: stop the app, back up SQLite, switch to week-2, keep the
+same DATABASE_PATH and original bootstrap credentials, run `python -m app.setup_owner`,
+then restart. It promotes only the sole Operator after checking those credentials.
+Week-3 adds email-claim metadata automatically. Do not reuse the database from the
+older Google Sheets prototype: import an Excel export into this repository instead.
+
+Week-3 adds submit → HR review → separate Operations approval, correction requests,
+resource mapping and queued SMTP email. Explicit task actions/notes and server checks
+remain mandatory even when the ANN identifies an approval intent. Configure SMTP
+and run `python -m app.worker`, or `docker compose --profile workflow up --build`.
+No email service is needed for week-1 chat/Excel intake.
+
+## Checks and limits
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest tests -q
+python -m compileall -q app
+node --check app/static/app.js
+```
+
+See VALIDATION.md for executed results. This is a small single-instance starter.
+Protect private SQLite data, use backups and HTTPS before external deployment.
+Docker, visual browser acceptance and live SMTP/model/provider checks may still
+need environment-specific verification as listed in that file.

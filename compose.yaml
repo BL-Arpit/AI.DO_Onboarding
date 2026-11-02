@@ -1,0 +1,32 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/onboarding.sqlite
+      ADVO_URL: http://extraction:8001
+    ports: ["8000:8000"]
+    volumes: ["app_data:/data"]
+    depends_on: [extraction]
+    restart: unless-stopped
+  extraction:
+    build: .
+    working_dir: /project/vendor/advo
+    command: ["python", "-m", "uvicorn", "app.extraction_main:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      GEMINI_EXTRACTION_FALLBACK_ENABLED: "false"
+      MAX_UPLOAD_SIZE_MB: "10"
+      MAX_PDF_PAGES: "10"
+    restart: unless-stopped
+  worker:
+    profiles: [workflow]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/onboarding.sqlite
+    command: ["python", "-m", "app.worker"]
+    volumes: ["app_data:/data"]
+    depends_on: [app]
+    restart: unless-stopped
+volumes:
+  app_data:

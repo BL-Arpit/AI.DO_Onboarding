@@ -1,0 +1,586 @@
+{
+  "training_examples": 273,
+  "held_out_examples": 72,
+  "top1_accuracy": 0.9722222222222222,
+  "guarded_accuracy": 0.8055555555555556,
+  "accepted_coverage": 0.78125,
+  "limitations": "Small curated English domain dataset, not a production language benchmark. Confidence is not a calibrated probability.",
+  "results": [
+    {
+      "text": "please add a candidate",
+      "expected": "add_person",
+      "intent": "add_person",
+      "predicted_intent": "add_person",
+      "confidence": 0.9276,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "register another worker",
+      "expected": "add_person",
+      "intent": "unknown",
+      "predicted_intent": "add_person",
+      "confidence": 0.4474,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "I need a new employee profile",
+      "expected": "add_person",
+      "intent": "add_person",
+      "predicted_intent": "add_person",
+      "confidence": 0.8766,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "add Sanjay Patel, sanjay@example.com, 9123456789",
+      "expected": "add_person",
+      "intent": "add_person",
+      "predicted_intent": "add_person",
+      "confidence": 0.9328,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "load employees from my workbook",
+      "expected": "import_excel",
+      "intent": "import_excel",
+      "predicted_intent": "import_excel",
+      "confidence": 0.8248,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "import this xlsx roster",
+      "expected": "import_excel",
+      "intent": "import_excel",
+      "predicted_intent": "import_excel",
+      "confidence": 0.7281,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "read the raw spreadsheet",
+      "expected": "import_excel",
+      "intent": "unknown",
+      "predicted_intent": "import_excel",
+      "confidence": 0.5771,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "upload the staff excel file",
+      "expected": "import_excel",
+      "intent": "import_excel",
+      "predicted_intent": "import_excel",
+      "confidence": 0.7371,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "show the employee roster",
+      "expected": "list_people",
+      "intent": "list_people",
+      "predicted_intent": "list_people",
+      "confidence": 0.7762,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "view registered people",
+      "expected": "list_people",
+      "intent": "list_people",
+      "predicted_intent": "list_people",
+      "confidence": 0.9469,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "list my employee profiles",
+      "expected": "list_people",
+      "intent": "list_people",
+      "predicted_intent": "list_people",
+      "confidence": 0.6981,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "display saved staff",
+      "expected": "list_people",
+      "intent": "list_people",
+      "predicted_intent": "list_people",
+      "confidence": 0.744,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "check the uploaded identity data",
+      "expected": "audit",
+      "intent": "audit",
+      "predicted_intent": "audit",
+      "confidence": 0.9372,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "verify this employee record",
+      "expected": "audit",
+      "intent": "unknown",
+      "predicted_intent": "audit",
+      "confidence": 0.3155,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "run a document audit",
+      "expected": "audit",
+      "intent": "audit",
+      "predicted_intent": "audit",
+      "confidence": 0.8254,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "find mismatches in documents",
+      "expected": "audit",
+      "intent": "audit",
+      "predicted_intent": "audit",
+      "confidence": 0.6849,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "attach a PAN card",
+      "expected": "upload_document",
+      "intent": "upload_document",
+      "predicted_intent": "upload_document",
+      "confidence": 0.9703,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "upload the employee PDF",
+      "expected": "upload_document",
+      "intent": "unknown",
+      "predicted_intent": "upload_document",
+      "confidence": 0.2022,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "read an Aadhaar scan",
+      "expected": "upload_document",
+      "intent": "upload_document",
+      "predicted_intent": "upload_document",
+      "confidence": 0.8498,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "attach this bank document",
+      "expected": "upload_document",
+      "intent": "upload_document",
+      "predicted_intent": "upload_document",
+      "confidence": 0.9391,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "download the employee list in excel",
+      "expected": "export_excel",
+      "intent": "export_excel",
+      "predicted_intent": "export_excel",
+      "confidence": 0.7713,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "export my roster workbook",
+      "expected": "export_excel",
+      "intent": "export_excel",
+      "predicted_intent": "export_excel",
+      "confidence": 0.9424,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "save people as xlsx",
+      "expected": "export_excel",
+      "intent": "export_excel",
+      "predicted_intent": "export_excel",
+      "confidence": 0.8742,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "get a spreadsheet of records",
+      "expected": "export_excel",
+      "intent": "unknown",
+      "predicted_intent": "export_excel",
+      "confidence": 0.4108,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "hi good morning",
+      "expected": "greeting",
+      "intent": "greeting",
+      "predicted_intent": "greeting",
+      "confidence": 0.9909,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "hello good evening",
+      "expected": "greeting",
+      "intent": "greeting",
+      "predicted_intent": "greeting",
+      "confidence": 0.9919,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "hey assistant",
+      "expected": "greeting",
+      "intent": "greeting",
+      "predicted_intent": "greeting",
+      "confidence": 0.9528,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "good afternoon assistant",
+      "expected": "greeting",
+      "intent": "greeting",
+      "predicted_intent": "greeting",
+      "confidence": 0.968,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "yes confirm it",
+      "expected": "confirm",
+      "intent": "confirm",
+      "predicted_intent": "confirm",
+      "confidence": 0.9893,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "please save it",
+      "expected": "confirm",
+      "intent": "confirm",
+      "predicted_intent": "confirm",
+      "confidence": 0.9593,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "go ahead please",
+      "expected": "confirm",
+      "intent": "confirm",
+      "predicted_intent": "confirm",
+      "confidence": 0.9441,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "confirm this person",
+      "expected": "confirm",
+      "intent": "confirm",
+      "predicted_intent": "confirm",
+      "confidence": 0.7545,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "cancel my pending entry",
+      "expected": "cancel",
+      "intent": "cancel",
+      "predicted_intent": "cancel",
+      "confidence": 0.93,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "please discard this person",
+      "expected": "cancel",
+      "intent": "unknown",
+      "predicted_intent": "cancel",
+      "confidence": 0.5469,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "reset the draft",
+      "expected": "cancel",
+      "intent": "cancel",
+      "predicted_intent": "cancel",
+      "confidence": 0.9306,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "stop this onboarding entry",
+      "expected": "cancel",
+      "intent": "unknown",
+      "predicted_intent": "cancel",
+      "confidence": 0.6012,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "show onboarding options",
+      "expected": "help",
+      "intent": "unknown",
+      "predicted_intent": "help",
+      "confidence": 0.5829,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "how can I use this chat",
+      "expected": "help",
+      "intent": "help",
+      "predicted_intent": "help",
+      "confidence": 0.9109,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "what actions are supported",
+      "expected": "help",
+      "intent": "help",
+      "predicted_intent": "help",
+      "confidence": 0.8367,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "give me chat instructions",
+      "expected": "help",
+      "intent": "unknown",
+      "predicted_intent": "help",
+      "confidence": 0.6465,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "invite a system user",
+      "expected": "add_user",
+      "intent": "add_user",
+      "predicted_intent": "add_user",
+      "confidence": 0.9812,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "create an HR admin account",
+      "expected": "add_user",
+      "intent": "add_user",
+      "predicted_intent": "add_user",
+      "confidence": 0.9763,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "add a new recruiter user",
+      "expected": "add_user",
+      "intent": "unknown",
+      "predicted_intent": "add_user",
+      "confidence": 0.6417,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "create a teammate login",
+      "expected": "add_user",
+      "intent": "add_user",
+      "predicted_intent": "add_user",
+      "confidence": 0.7012,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "modify access role",
+      "expected": "change_role",
+      "intent": "change_role",
+      "predicted_intent": "change_role",
+      "confidence": 0.9315,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "assign an operations role",
+      "expected": "change_role",
+      "intent": "change_role",
+      "predicted_intent": "change_role",
+      "confidence": 0.8767,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "change recruiter permissions",
+      "expected": "change_role",
+      "intent": "change_role",
+      "predicted_intent": "change_role",
+      "confidence": 0.7064,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "update the role of a user",
+      "expected": "change_role",
+      "intent": "change_role",
+      "predicted_intent": "change_role",
+      "confidence": 0.9064,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "send employee data to HR",
+      "expected": "submit",
+      "intent": "submit",
+      "predicted_intent": "submit",
+      "confidence": 0.7881,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "submit this onboarding record",
+      "expected": "submit",
+      "intent": "submit",
+      "predicted_intent": "submit",
+      "confidence": 0.8705,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "send this record for review",
+      "expected": "submit",
+      "intent": "submit",
+      "predicted_intent": "submit",
+      "confidence": 0.8266,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "submit my onboarding details",
+      "expected": "submit",
+      "intent": "submit",
+      "predicted_intent": "submit",
+      "confidence": 0.9423,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "complete the HR maker review",
+      "expected": "review",
+      "intent": "review",
+      "predicted_intent": "review",
+      "confidence": 0.8157,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "forward onboarding to Operations",
+      "expected": "review",
+      "intent": "review",
+      "predicted_intent": "review",
+      "confidence": 0.7918,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "mark employee data reviewed",
+      "expected": "review",
+      "intent": "unknown",
+      "predicted_intent": "review",
+      "confidence": 0.6293,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "finish reviewing this submission",
+      "expected": "review",
+      "intent": "review",
+      "predicted_intent": "review",
+      "confidence": 0.8544,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "give the employee final approval",
+      "expected": "approve",
+      "intent": "approve",
+      "predicted_intent": "approve",
+      "confidence": 0.8806,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "approve the onboarding record",
+      "expected": "approve",
+      "intent": "approve",
+      "predicted_intent": "approve",
+      "confidence": 0.9068,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "finalize employee approval",
+      "expected": "approve",
+      "intent": "approve",
+      "predicted_intent": "approve",
+      "confidence": 0.7849,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "mark this task approved",
+      "expected": "approve",
+      "intent": "unknown",
+      "predicted_intent": "review",
+      "confidence": 0.5548,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "return employee data for corrections",
+      "expected": "request_changes",
+      "intent": "request_changes",
+      "predicted_intent": "request_changes",
+      "confidence": 0.8816,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "ask for onboarding corrections",
+      "expected": "request_changes",
+      "intent": "request_changes",
+      "predicted_intent": "request_changes",
+      "confidence": 0.8971,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "send the submission back",
+      "expected": "request_changes",
+      "intent": "unknown",
+      "predicted_intent": "request_changes",
+      "confidence": 0.2896,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "reopen this employee for changes",
+      "expected": "request_changes",
+      "intent": "unknown",
+      "predicted_intent": "request_changes",
+      "confidence": 0.6274,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "tell me tomorrow weather",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "unknown",
+      "confidence": 0.8451,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "write a birthday song",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "unknown",
+      "confidence": 0.8674,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "erase all user data",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "add_user",
+      "confidence": 0.3347,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "do not approve this record",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "unknown",
+      "confidence": 0.7928,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "do not submit onboarding",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "unknown",
+      "confidence": 0.8515,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "turn off all permission checks",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "unknown",
+      "confidence": 0.7245,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "change the application source",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "unknown",
+      "confidence": 0.5837,
+      "model": "local_ann_v1"
+    },
+    {
+      "text": "recommend a restaurant",
+      "expected": "unknown",
+      "intent": "unknown",
+      "predicted_intent": "unknown",
+      "confidence": 0.7392,
+      "model": "local_ann_v1"
+    }
+  ]
+}
