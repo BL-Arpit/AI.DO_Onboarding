@@ -1,58 +1,53 @@
 # Validation — 2 November 2026
 
-| Version/check | Executed result |
+| Check | Result |
 | --- | --- |
-| week-1 | 12 application tests passed |
-| week-2 | 19 application tests passed |
-| week-3 | 23 application tests passed |
-| Supplied ADVO extraction/layout/API subset | 30 passed; 3 unavailable image-fixture tests deselected |
-| ONNX classifier | Real local CPU inference executed in each weekly test suite |
-| Tesseract extraction | Real synthetic PAN image read and PAN field extracted |
+| week-1 application suite | 16 passed |
+| week-2 application suite | 23 passed |
+| week-3 application suite | 28 passed |
+| Pruned ADVO extraction subset | 30 passed, 3 missing-image tests deselected |
+| Supplied document ONNX | Real CPU inference in the application tests |
+| Chat ANN | Trained locally from 273 curated examples; 72 separate held-out examples evaluated |
 | Python compilation / JavaScript syntax | Passed |
 
-New workbook tests generate actual XLSX and legacy XLS binary files, not mocked
-row arrays. Coverage includes:
+The ANN has 780 input features, 48 hidden units, 17 outputs and 38,321 parameters.
+Its compressed weights are 141,762 bytes. Held-out top-1 accuracy was 97.22%;
+confidence-guarded accuracy across the whole held-out set was 80.56%. The guard
+accepted 78.13% of known-task examples and deferred the rest. This is a small curated
+English domain set, not evidence of production or unrestricted language accuracy.
+Confidence scores are not calibrated probabilities. Per-example predictions,
+including errors and rejected cases, are preserved in model/chat/evaluation.json.
+The training script never uses evaluation examples for gradient updates.
 
-- Week-1 operator adding another person entirely through multi-turn chat.
-- Full prompts, explicit save confirmation, cancellation, invalid-input corrections.
-- Raw XLSX/XLS parsing, numeric phone cells, text leading zeros, worksheet selection.
-- Missing headers, unreadable/unsupported files, formula-bearing XLSX rows.
-- Preview without mutation, rejected/duplicate rows, replay protection and atomic
-  rollback when another request creates a duplicate after preview.
-- Literal XLSX export, per-employee export visibility and import preview ownership.
-- Roles, invitations, one-use activation, user/role chat, last-owner protection,
-  session revocation, recruiter limits and the Operator-to-Owner upgrade.
-- Employee submission, HR review, separate Operations approval, corrections,
-  stale decisions, current documents/fields and required notes.
-- Pending email failure/retry and no repeat delivery of already completed jobs.
-- Audit model output cannot auto-approve a person.
+Agent integration checks verify:
 
-The previous online-sheet application history is not carried into this fresh
-repository. No online-sheet API, credential configuration or sheet-sync job exists
-in the new application. The supplied ADVO vendor can optionally use its original
-Gemini extraction provider; that is separate from file import and is disabled by
-default in the extraction environment example and Docker configuration.
+- A paraphrased onboarding request is classified by the local ANN and handed to
+  the onboarding agent, with chat_model and agent_trace returned by the API.
+- Follow-up names/emails/phones are collected using per-user conversation state.
+- Unknown/OOV requests do not create or save people; confirmation needs a pending
+  preview. Saving still requires explicit confirmation text and validation.
+- Excel preview/import/export, real raw XLSX/XLS files, duplicates, atomic imports,
+  literal spreadsheet cells and role-scoped exports work through the same data layer.
+- Employee visibility, recruiter limits, role changes, invitations and session
+  revocation remain enforced in week-2 and week-3.
+- Workflow order, stale versions, separate maker/approver and required notes remain
+  enforced even when the local model is deliberately forced to make an incorrect
+  approval prediction. Negated action text cannot approve the record.
+- Invalid optional audit-model output remains needs_review.
 
-Workflow tests mock extraction and outbound email; ONNX and Tesseract smoke checks
-are separate real executions. These checks establish integration behavior, not
-classifier accuracy or document authenticity. No real private identity document
-or employee workbook is bundled.
+Workflow tests mock document extraction and SMTP delivery; model inference is real.
+No real employee workbook, document or private chat history is used for training.
+The optional audit model is separate from the trained local chat ANN.
 
-Not executed: Docker build/run (Docker unavailable), visual browser acceptance,
-live SMTP delivery, live optional prompt-model service, authoritative government/
-background/DL provider checks. Configure the optional services and run your own
-acceptance pass before external deployment. Excel/chat intake needs none of them.
+Not executed: Docker build/run, visual browser acceptance, live SMTP, live optional
+audit-model endpoint, authoritative government/background/DL checks. These still
+need deployment-specific acceptance. No provider authentication or document
+accuracy certification is implied by the passing tests.
 
-The supplied ADVO ZIP omits images needed by these three original regression tests:
+Three original ADVO image-fixture tests remain unavailable because the supplied
+archive omitted their images. They were explicitly deselected, not counted as
+passing: test_pan_front_crop_extracts_required_fields_from_stacked_scan,
+test_cheque_candidates_keep_labeled_ifsc_and_account_fields, and
+test_aadhaar_address_crop_reduces_known_tesseract_spillover.
 
-- test_pan_front_crop_extracts_required_fields_from_stacked_scan
-- test_cheque_candidates_keep_labeled_ifsc_and_account_fields
-- test_aadhaar_address_crop_reduces_known_tesseract_spillover
-
-The available subset was run from vendor/advo with:
-
-```bash
-python -m pytest tests/test_extraction_service.py tests/test_document_layout_regressions.py tests/test_extraction_route.py -q -k 'not test_pan_front_crop_extracts_required_fields_from_stacked_scan and not test_cheque_candidates_keep_labeled_ifsc_and_account_fields and not test_aadhaar_address_crop_reduces_known_tesseract_spillover'
-```
-
-One upstream TestClient deprecation warning was reported without failures.
+One upstream TestClient deprecation warning was reported without test failures.
