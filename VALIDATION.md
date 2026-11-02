@@ -1,3 +1,7 @@
+# Master employee sheet update
+
+All conversations and confirmed Excel imports use the same saved employee register. One master workbook contains one worksheet and one row per employee. Extracted fields appear in document-specific columns. Tests combine entries from two independent chats plus an Excel import and verify that all three appear once in the same worksheet. A second test verifies document columns, verification status and literal spreadsheet cells. Chromium checks passed for opening the master table and its Excel download link, alongside the existing chat and attachment interactions. Existing role visibility applies to both master table and export.
+
 # AIDO single-window update
 
 The frontend adapts the supplied `aido-chat.zip` design. Desktop and mobile screenshots were inspected. A real Chromium interaction check passed for chat entry, new conversations, history switching, inline employee fields, drag-and-drop Excel previews, document attachment and mobile width. Browser API responses were mocked for these UI checks; the application suites below exercise the real backend separately. The five JavaScript response-handling tests also passed.
@@ -10,9 +14,9 @@ PAN processing uses both block and sparse OCR, with a default 20-second shared O
 
 | Check | Result |
 | --- | --- |
-| week-1 application suite | 27 passed |
-| week-2 application suite | 34 passed |
-| week-3 application suite | 39 passed |
+| week-1 application suite | 29 passed |
+| week-2 application suite | 36 passed |
+| week-3 application suite | 41 passed |
 | Pruned ADVO extraction subset | 31 passed, 3 missing-image tests deselected |
 | Supplied document ONNX | Real CPU inference in the application tests |
 | Chat ANN | Trained locally from 273 curated examples; 72 separate held-out examples evaluated |
