@@ -15,7 +15,7 @@ from .database import connection,initialize,record,audit
 from .auth import bootstrap,current_user,password_matches
 from .policy import require,can_add,employee_access,editable,visible
 from .people import intake_agent
-from .excel import parse_excel,export_excel
+from .excel import master_table,parse_excel,export_excel
 from .agents.router import route_message
 from .agents.chat import load_model
 from .agents.document import document_agent as process_document
@@ -95,7 +95,11 @@ def list_employees(user=Depends(current_user)):
 def export_employees(user=Depends(current_user)):
     content=export_excel(list_employees(user))
     return Response(content,media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition':'attachment; filename="employees.xlsx"'})
+        headers={'Content-Disposition':'attachment; filename="master_employees.xlsx"'})
+
+@app.get('/api/employees/master')
+def master_employees(user=Depends(current_user)):
+    return master_table(list_employees(user))
 
 @app.get('/api/employees/{eid}')
 def employee(eid: str,user=Depends(current_user)):

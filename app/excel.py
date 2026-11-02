@@ -79,17 +79,37 @@ def parse_excel(content,filename,sheet_name=None):
             if suffix=='.xlsx':workbook.close()
             else:workbook.release_resources()
 
+def master_table(employees):
+    """One row per saved employee across every conversation and import."""
+    import json
+    def flatten(value,prefix=''):
+        result={}
+        for key,item in sorted(value.items()):
+            column=prefix+'.'+key if prefix else key
+            if isinstance(item,dict):result.update(flatten(item,column))
+            else:result[column]=json.dumps(item,ensure_ascii=False) if isinstance(item,list) else cell_text(item)
+        return result
+    people=list(employees)
+    fields=[flatten(person.get('fields',{})) for person in people]
+    extra=sorted({key for person in fields for key in person})
+    columns=['employee_id','name','email','phone','client','track','status','verification_status']+extra
+    rows=[]
+    for person,details in zip(people,fields):
+        rows.append([person['id']]+[cell_text(person.get(key,'')) for key in columns[1:7]]+
+                    [cell_text(person.get('verification',{}).get('status',''))]+[details.get(key,'') for key in extra])
+    return {'columns':columns,'rows':rows}
+
 def export_excel(employees):
-    workbook=Workbook();sheet=workbook.active;sheet.title='Employees'
-    headers=['employee_id','name','email','phone','client','track','status']
-    sheet.append(headers)
-    for employee in employees:
-        sheet.append([employee['id']]+[employee[k] for k in headers[1:]])
+    workbook=Workbook();sheet=workbook.active;sheet.title='Master Employees'
+    data=master_table(employees)
+    sheet.append(data['columns'])
+    for row in data['rows']:sheet.append(row)
     # Force strings to literal cells, including values beginning with =, +, -, @.
     for row in sheet:
         for cell in row:
             cell.data_type='s';cell.number_format='@'
     sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
-    for column,width in {'A':28,'B':28,'C':36,'D':20,'E':26,'F':16,'G':24}.items():
-        sheet.column_dimensions[column].width=width
+    from openpyxl.utils import get_column_letter
+    for index,column in enumerate(data['columns'],1):
+        sheet.column_dimensions[get_column_letter(index)].width=36 if column=='email' else 26
     output=io.BytesIO();workbook.save(output);workbook.close();return output.getvalue()

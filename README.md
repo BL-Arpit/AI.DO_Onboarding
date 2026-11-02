@@ -1,8 +1,12 @@
+## One master employee sheet
+
+Every chat and confirmed Excel import saves to the same employee register. Conversations only separate messages and pending drafts; they never create separate employee sheets. Use **Master sheet** in chat or type `list` to view the complete register and download `master_employees.xlsx`. The workbook has one worksheet, **Master Employees**, with one row per employee and columns for contact details, client, track, workflow status, verification status and all extracted document fields. New document field columns are added automatically. Existing duplicate-email protection remains active. No conversation filter is applied to the master register. Existing role permissions still determine which records an employee or recruiter can access; the Owner sees all employees. The downloadable workbook is generated from the current saved data each time, so changes appear on the same employee row instead of a new chat-specific sheet.
+
 ## Single-window chat UI · AIDO design
 
 The frontend follows the supplied `aido-chat.zip` design: dark surfaces, a 264px sidebar, compact header, purple accents and rounded composer. Mobile conversations open in a drawer. The supplied logo is reused. The onboarding backend and local ANN remain the application engine.
 
-Week 1 opens in a minimal dark chat. Start a conversation, use **Add person**, **Upload Excel**, or **People**, or type a request. Attach or drag documents into the same window. Choose a person before uploading identity documents. Extracted fields, corrections, audit results and Excel previews appear inline. Confirm before saving or importing.
+Week 1 opens in a minimal dark chat. Start a conversation, use **Add person**, **Upload Excel**, or **Master sheet**, or type a request. Attach or drag documents into the same window. Choose a person before uploading identity documents. Extracted fields, corrections, audit results and Excel previews appear inline. Confirm before saving or importing.
 
 **New chat** creates an independent intake draft. One conversation can cover one person or several people. Switch between conversations in the sidebar. Transcripts are held only in this browser tab and clear on reload; saved employee records remain available under People. Drafts are isolated on the server per signed-in user and conversation. This is not a durable chat-history service.
 

@@ -37,7 +37,7 @@ def route_message(body,user,verify):
     if intent=='import_excel':
         can_add(user);return reply({'reply':'Upload your raw Excel file below. Preview it before importing.','action':'import'},'onboarding_agent')
     if intent=='list_people':
-        return reply({'reply':'Your people are listed below.','action':'list'},'onboarding_agent')
+        return reply({'reply':'All saved employees are in your master sheet.','action':'list'},'onboarding_agent')
     if intent=='export_excel':
         return reply({'reply':'Downloading your employee workbook.','action':'export'},'onboarding_agent')
     if intent=='upload_document':

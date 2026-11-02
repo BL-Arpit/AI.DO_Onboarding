@@ -32,7 +32,7 @@ async function send(text){
  invitation(result.invitation_url,b);
  if(result.report)element('pre',JSON.stringify(result.report,null,2),b);
  if(result.action==='import')showExcel();
- if(result.action==='list'){const list=bubble('People');for(const row of await api('/employees'))button(row.name,()=>openEmployee(row.id),list);}
+ if(result.action==='list')await showMaster();
  if(result.action==='upload_document')$('attachments').click();
  if(result.action==='export')location.assign('/api/employees/export');
  await refresh();if(result.employee_id)await openEmployee(result.employee_id);else if(selected)await openEmployee(selected.id);
@@ -86,7 +86,7 @@ $('newChat').onclick=()=>guard(async()=>{await api('/me');newChat();});
 $('peopleToggle').onclick=()=>{$('employees').hidden=!$('employees').hidden;};$('employees').hidden=true;
 for(const id of ['manage','passwordButton','logout'])$('accountTools').append($(id));
 // Keep only three entry actions; all forms and reviews appear in the chat.
-const tools=$('add').parentElement;for(const a of tools.querySelectorAll('a'))a.remove();button('People',()=>send('list'),tools);
+const tools=$('add').parentElement;for(const a of tools.querySelectorAll('a'))a.remove();button('Master sheet',()=>showMaster(),tools);
 $('attach').onclick=()=>{$('attachments').accept='.xls,.xlsx,.pdf,image/*';$('attachments').click();};
 async function acceptFiles(files){if(busy)return;busy=true;$('attach').disabled=true;try{await api('/me');for(const file of files){$('attachmentsStatus').textContent='Reading '+file.name+'…';if(/\.xlsx?$/i.test(file.name)){showExcel();const input=$('excelForm').elements.file;const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;await previewExcel(new FormData($('excelForm')));if(files.length>1)bubble('Import this workbook first, then attach the next file.');break;}else{if(!selected){bubble('Choose a person before adding their document.');const b=bubble('People');for(const row of await api('/employees'))button(row.name,async()=>{await openEmployee(row.id);await acceptFiles([file]);},b);break;}const body=new FormData();body.append('file',file);bubble(file.name,'user');const result=await api('/employees/'+selected.id+'/documents',{method:'POST',body});bubble('Document read: '+result.extraction.document_type+'. Check the fields below.');await openEmployee(selected.id);}}}finally{busy=false;$('attach').disabled=false;$('attachmentsStatus').textContent='';$('attachments').value='';}}
 $('attachments').onchange=e=>guard(()=>acceptFiles(Array.from(e.target.files)));
@@ -99,3 +99,11 @@ $('sidebarClose').onclick=()=>document.body.classList.remove('sidebar-open');
 const messageBox=$('chatForm').elements.message;
 messageBox.oninput=()=>{messageBox.style.height='auto';messageBox.style.height=Math.min(messageBox.scrollHeight,200)+'px';};
 messageBox.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(messageBox.value.trim()&&!busy)$('chatForm').requestSubmit();}};
+
+async function showMaster(){
+ const data=await api('/employees/master');const card=bubble('Master employee sheet');
+ const link=element('a','Download Excel',card);link.href='/api/employees/export';link.download='master_employees.xlsx';
+ if(!data.rows.length){element('p','No employees yet.',card);return;}
+ const view=table(data.rows,data.columns.map(k=>k.replaceAll('_',' ')),card);
+ Array.from(view.tBodies[0].rows).forEach((row,index)=>{row.cells[0].replaceChildren();button('Open',()=>openEmployee(data.rows[index][0]),row.cells[0]);});
+}
