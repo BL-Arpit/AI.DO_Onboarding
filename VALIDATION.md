@@ -1,11 +1,19 @@
+# AIDO single-window update
+
+The frontend adapts the supplied `aido-chat.zip` design. Desktop and mobile screenshots were inspected. A real Chromium interaction check passed for chat entry, new conversations, history switching, inline employee fields, drag-and-drop Excel previews, document attachment and mobile width. Browser API responses were mocked for these UI checks; the application suites below exercise the real backend separately. The five JavaScript response-handling tests also passed.
+
+Conversation transcripts are held in memory for the browser tab and clear on reload. Saved employee records remain persistent. Pending intake drafts are scoped by authenticated user and conversation ID. Week 2 role drafts use the same scope. New conversations cannot interrupt an in-flight chat or attachment request.
+
+PAN processing uses both block and sparse OCR, with a default 20-second shared OCR budget. Real Tesseract recovered a PAN identifier from a synthetic image across four views. This is not a real-document accuracy benchmark. Existing ADVO `.env` files must set `OCR_REQUEST_TIMEOUT_SECONDS=20` and restart the extraction service to use the longer budget. No Tesseract executable upgrade is bundled. Gemini fallback remains disabled by default.
+
 # Validation — 2 November 2026
 
 | Check | Result |
 | --- | --- |
-| week-1 application suite | 26 passed |
-| week-2 application suite | 33 passed |
-| week-3 application suite | 38 passed |
-| Pruned ADVO extraction subset | 30 passed, 3 missing-image tests deselected |
+| week-1 application suite | 27 passed |
+| week-2 application suite | 34 passed |
+| week-3 application suite | 39 passed |
+| Pruned ADVO extraction subset | 31 passed, 3 missing-image tests deselected |
 | Supplied document ONNX | Real CPU inference in the application tests |
 | Chat ANN | Trained locally from 273 curated examples; 72 separate held-out examples evaluated |
 | Python compilation / JavaScript syntax | Passed |

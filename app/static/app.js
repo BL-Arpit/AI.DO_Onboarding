@@ -18,7 +18,7 @@ function bubble(text,who='assistant'){const b=element('div',text,$('chatlog'));b
 function table(rows,headers,parent){const wrap=element('div',undefined,parent);wrap.className='scroll';const t=element('table',undefined,wrap);const h=element('tr',undefined,element('thead',undefined,t));headers.forEach(x=>element('th',x,h));const body=element('tbody',undefined,t);for(const row of rows){const tr=element('tr',undefined,body);row.forEach(x=>element('td',x??'',tr));}return t;}
 function invitation(url,parent){if(!url)return;const p=element('p','Activation link: ',parent);const link=element('a',url,p);link.href=url;}
 async function refresh(){
- me=await api('/me');$('notice').style.display='none';$('login').hidden=true;$('workspace').style.display='block';$('account').textContent=me.name+' · '+me.role.replaceAll('_',' ');$('greeting').textContent='Hi, welcome';
+ me=await api('/me');$('notice').style.display='none';$('login').hidden=true;$('workspace').style.display='block';$('account').textContent=me.name+' · '+me.role.replaceAll('_',' ');
  const canAdd=['operator','owner','hr_admin','recruiter'].includes(me.role);$('add').hidden=!canAdd;$('uploadExcel').hidden=!canAdd;$('manage').hidden=me.role!=='owner';$('passwordButton').hidden=me.stage<2;
  const rows=await api('/employees');$('employees').replaceChildren();if(!rows.length)element('p','No people yet.',$('employees'));
  for(const row of rows)button(row.name+' · '+row.status,()=>openEmployee(row.id),$('employees')).className='row';
@@ -81,7 +81,7 @@ const chats=[];let currentChat;let busy=false;
 function showExcel(){ $('chatlog').append($('excelPanel'));$('excelPanel').hidden=false; }
 function renderConversations(){ $('conversations').replaceChildren();for(const chat of chats){const b=button(chat.title,()=>switchChat(chat),$('conversations'));b.className=chat===currentChat?'active':'';} }
 function switchChat(chat){if(busy||chat===currentChat)return;document.body.classList.remove('sidebar-open');if(currentChat){currentChat.nodes=Array.from($('chatlog').childNodes).filter(n=>!['detail','excelPanel','usersPanel','passwordPanel'].includes(n.id));currentChat.employee=selected?.id;}for(const id of ['detail','excelPanel','usersPanel','passwordPanel']){$('conversation').append($(id));$(id).hidden=true;}$('chatlog').replaceChildren(...chat.nodes);currentChat=chat;$('chatTitle').textContent=chat.title;selected=null;$('greeting').hidden=chat.nodes.length>0;renderConversations();if(chat.employee)guard(()=>openEmployee(chat.employee));}
-function newChat(){if(busy)return;const chat={id:crypto.randomUUID(),title:'New conversation',nodes:[],employee:null};chats.unshift(chat);switchChat(chat);}
+function newChat(){if(busy)return;const chat={id:Array.from(crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16).padStart(8,'0')).join(''),title:'New conversation',nodes:[],employee:null};chats.unshift(chat);switchChat(chat);}
 $('newChat').onclick=()=>guard(async()=>{await api('/me');newChat();});
 $('peopleToggle').onclick=()=>{$('employees').hidden=!$('employees').hidden;};$('employees').hidden=true;
 for(const id of ['manage','passwordButton','logout'])$('accountTools').append($(id));
