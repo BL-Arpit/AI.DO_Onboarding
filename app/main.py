@@ -7,9 +7,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import Depends,FastAPI,HTTPException,UploadFile,File,Form,Request,Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse,JSONResponse
 from pydantic import BaseModel,Field
 from .stage import STAGE
+from .origin import origin_allowed
 from .database import connection,initialize,record,audit
 from .auth import bootstrap,current_user,password_matches
 from .policy import require,can_add,employee_access,editable,visible
@@ -29,9 +30,12 @@ app=FastAPI(title='Onboarding',lifespan=lifespan)
 @app.middleware('http')
 async def security(request: Request,call_next):
     origin=request.headers.get('origin')
-    if request.method not in ('GET','HEAD','OPTIONS') and origin and origin.rstrip('/')!=os.getenv('APP_URL','http://localhost:8000').rstrip('/'):
-        return Response('Origin not allowed',status_code=403)
-    response=await call_next(request)
+    if request.method not in ('GET','HEAD','OPTIONS') and origin and not origin_allowed(origin):
+        response=JSONResponse(status_code=403,content={'detail':
+            'Origin not allowed. Open '+os.getenv('APP_URL','http://localhost:8000')+
+            ' or set APP_URL in .env to the exact browser address (scheme, host and port), then restart the app.'})
+    else:
+        response=await call_next(request)
     response.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY',
         'Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'"})
     return response

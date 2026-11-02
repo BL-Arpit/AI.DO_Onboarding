@@ -111,7 +111,11 @@ python -m pip install -r requirements.txt -r requirements-advo.txt
 
 Copy `.env.example` to `.env`. Set BOOTSTRAP_EMAIL and your own BOOTSTRAP_PASSWORD
 (16+ characters). The example password is rejected. Keep APP_URL=http://localhost:8000
-when using that address. Then run:
+when using that address. Local `localhost`, `127.0.0.1` and `[::1]` addresses are
+accepted interchangeably on the same scheme and port. If using a custom hostname,
+LAN IP, public domain or different port, set APP_URL to that exact browser origin
+(no path), then restart the application. Do not use `*` or `0.0.0.0` as APP_URL;
+`0.0.0.0` is a bind address, not the browser address. Then run:
 
 ```bash
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -197,6 +201,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest tests -q
 python -m compileall -q app
 node --check app/static/app.js
+node --test tests/test_api_errors.cjs
 ```
 
 See VALIDATION.md for executed results. This is a small single-instance starter.

@@ -2,9 +2,9 @@
 
 | Check | Result |
 | --- | --- |
-| week-1 application suite | 16 passed |
-| week-2 application suite | 23 passed |
-| week-3 application suite | 28 passed |
+| week-1 application suite | 26 passed |
+| week-2 application suite | 33 passed |
+| week-3 application suite | 38 passed |
 | Pruned ADVO extraction subset | 30 passed, 3 missing-image tests deselected |
 | Supplied document ONNX | Real CPU inference in the application tests |
 | Chat ANN | Trained locally from 273 curated examples; 72 separate held-out examples evaluated |
@@ -51,3 +51,8 @@ test_cheque_candidates_keep_labeled_ifsc_and_account_fields, and
 test_aadhaar_address_crop_reduces_known_tesseract_spillover.
 
 One upstream TestClient deprecation warning was reported without test failures.
+
+Origin-error fix: local loopback aliases are accepted only on the same scheme and
+port. Public origins still require APP_URL. Rejections are JSON with setup guidance,
+and frontend parsing handles plain-text/HTML failures without a JSON SyntaxError.
+Ten backend origin regressions and five Node tests of the real API helper pass.

@@ -3,8 +3,13 @@ const $=id=>document.getElementById(id);
 function notice(text){$('notice').textContent=text;$('notice').style.display='block';}
 async function api(path,options={}){
  if(options.body && !(options.body instanceof FormData)){options.body=JSON.stringify(options.body);options.headers={'Content-Type':'application/json'};}
- const response=await fetch('/api'+path,options);const data=await response.json();
- if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Please check your entries.');return data;
+ const response=await fetch('/api'+path,options);
+ const raw=await response.text();let data;
+ try{data=raw?JSON.parse(raw):{};}catch{
+  if(!response.ok)throw Error(raw.trim().startsWith('<')?'Server error ('+response.status+'). Check the application server.':raw.slice(0,300)||'Request failed ('+response.status+').');
+  throw Error('Server returned an unexpected response. Check the application server.');
+ }
+ if(!response.ok)throw Error(typeof data?.detail==='string'?data.detail:'Request failed ('+response.status+'). Please check your entries.');return data;
 }
 async function guard(action,button){if(button)button.disabled=true;try{await action();}catch(e){notice(e.message);}finally{if(button)button.disabled=false;}}
 function element(tag,text,parent){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(parent)parent.append(e);return e;}
