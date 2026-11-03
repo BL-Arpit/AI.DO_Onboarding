@@ -37,7 +37,7 @@ async function send(text){
  await refresh();const view=result.action==='upload_document'?'upload':undefined;if(result.employee_id)await openEmployee(result.employee_id,view);else if(selected)await openEmployee(selected.id,view);
 }
 async function openEmployee(id,view){
- selected=await api('/employees/'+id);const d=$('detail');$('chatlog').append(d);d.hidden=false;d.replaceChildren();
+ selected=await api('/employees/'+id);$('greeting').hidden=true;if($('startActions'))$('startActions').hidden=true;const d=$('detail');$('chatlog').append(d);d.hidden=false;d.replaceChildren();
  element('h2',selected.name,d);element('p',selected.email+' · '+selected.phone,d);
  const editable=selected.status==='draft'&&['operator','owner','hr_admin','employee'].includes(me.role);
  const events=selected.audit||[];const latest=action=>Math.max(-1,...events.map((e,i)=>e.action===action?i:-1));
@@ -105,7 +105,7 @@ guard(async()=>{if(location.hash.startsWith('#invite=')){$('login').hidden=true;
 
 // Conversation transcripts stay in memory; document data remains on the server.
 const chats=[];let currentChat;let busy=false;
-function showExcel(){ selected=null;$('detail').hidden=true;$('chatlog').append($('excelPanel'));$('excelPanel').hidden=false; }
+function showExcel(){ $('greeting').hidden=true;if($('startActions'))$('startActions').hidden=true;selected=null;$('detail').hidden=true;$('chatlog').append($('excelPanel'));$('excelPanel').hidden=false; }
 function renderConversations(){ $('conversations').replaceChildren();for(const chat of chats){const b=button(chat.title,()=>switchChat(chat),$('conversations'));b.className=chat===currentChat?'active':'';} }
 function switchChat(chat){if(busy||chat===currentChat)return;document.body.classList.remove('sidebar-open');if(currentChat){currentChat.nodes=Array.from($('chatlog').childNodes).filter(n=>!['detail','excelPanel','usersPanel','passwordPanel'].includes(n.id));currentChat.employee=selected?.id;}for(const id of ['detail','excelPanel','usersPanel','passwordPanel']){$('conversation').append($(id));$(id).hidden=true;}$('chatlog').replaceChildren(...chat.nodes);currentChat=chat;$('chatTitle').textContent=chat.title;selected=null;$('greeting').hidden=chat.nodes.length>0;if($('startActions'))$('startActions').hidden=chat.nodes.length>0;renderConversations();if(chat.employee)guard(()=>openEmployee(chat.employee));}
 function newChat(){if(busy)return;const chat={id:Array.from(crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16).padStart(8,'0')).join(''),title:'New conversation',nodes:[],employee:null};chats.unshift(chat);switchChat(chat);}

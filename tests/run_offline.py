@@ -20,4 +20,6 @@ def document_encoder():
 classifier._load=document_encoder
 import pytest
 print('Offline graph interpreter: native ONNX Runtime is never imported.',flush=True)
-sys.exit(pytest.main(['-q','tests']))
+result=pytest.main(['-q','tests'])
+assert 'onnxruntime' not in sys.modules,'Native runtime was unexpectedly imported in offline mode.'
+sys.exit(result)
