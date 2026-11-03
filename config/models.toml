@@ -1,0 +1,20 @@
+# No bundled legacy chat model. Change active_provider, set its environment values, restart.
+active_provider = "demo"
+[providers.demo]
+kind = "demo"
+[providers.openai]
+kind = "openai"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+model_env = "OPENAI_MODEL"
+[providers.gemini]
+kind = "gemini"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+api_key_env = "GEMINI_API_KEY"
+model_env = "GEMINI_MODEL"
+[providers.claude]
+kind = "claude"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
+model_env = "CLAUDE_MODEL"
+api_version = "2023-06-01"

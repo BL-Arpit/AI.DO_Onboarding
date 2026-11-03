@@ -1,0 +1,2 @@
+# Optional image classifier only; no legacy chat model is included.
+onnxruntime>=1.19,<2

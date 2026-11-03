@@ -1,1 +1,0 @@
-MiniLM INT8 model and tokenizer sourced from sentence-transformers/all-MiniLM-L6-v2, revision 1110a243fdf4706b3f48f1d95db1a4f5529b4d41. Copyright belongs to the original respective contributors. License: Apache-2.0. Source and checksums: source.json. Encoder weights are unchanged; AI.DO adds a separate trained intent head.

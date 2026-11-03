@@ -1,3 +1,0 @@
-pytesseract>=0.3.13,<1
-opencv-python-headless>=4.10,<5
-google-genai>=1,<3

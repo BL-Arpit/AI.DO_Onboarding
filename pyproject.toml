@@ -1,0 +1,10 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"] # CLI files must add the project root before local imports.

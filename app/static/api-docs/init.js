@@ -1,0 +1,1 @@
+fetch('/api/auth/session',{credentials:'same-origin'}).then(r=>r.json()).then(session=>{SwaggerUIBundle({url:'/openapi.json',dom_id:'#swagger-ui',withCredentials:true,requestInterceptor:r=>{if(!['GET','HEAD'].includes(r.method?.toUpperCase()))(r.headers ||= {})['X-CSRF-Token']=session.csrf_token;return r;}});});
