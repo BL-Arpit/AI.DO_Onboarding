@@ -22,6 +22,11 @@ class Plan(BaseModel):
         "audit",
         "export",
         "cancel",
+        "status",
+        "next",
+        "missing",
+        "documents",
+        "history",
     ] = "reply"
     reply: str = Field(default="", max_length=2000)
     target: str = Field(default="", max_length=254)
@@ -54,6 +59,11 @@ PLAN_SCHEMA = {
                 "audit",
                 "export",
                 "cancel",
+                "status",
+                "next",
+                "missing",
+                "documents",
+                "history",
             ],
         },
         "reply": {"type": "string"},

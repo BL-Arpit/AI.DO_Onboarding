@@ -119,3 +119,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q tests
 python scripts/export_openapi.py
 ```
+
+## Context and onboarding workflow update
+
+Chat interpretation and deterministic onboarding policy are separate. A bounded persisted context layer and editable `config/intents.json` support follow-ups, exact employee resolution, progress questions and confirmed changes. Each employee needs two distinct government document types and one bank document; additional uploads are retained in extraction history. Imported and individual employees share this workflow. See [CONTEXT_AND_WORKFLOW.md](docs/CONTEXT_AND_WORKFLOW.md) for supported intents, provider setup and current extractor limits.

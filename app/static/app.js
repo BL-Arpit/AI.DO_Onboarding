@@ -44,6 +44,7 @@ function renderDocument(result){const box=task(result.classification.document_ty
 function renderEmployee(person){
  const box=task(person.name);node('p',person.email+' · '+person.phone,box).className='dim';
  const mocked=(person.documents||[]).some(d=>d.extraction?.is_mock);if(mocked)node('div','MOCK data · not verified identity',box).className='tag';
+ if(person.workflow)node('p',person.workflow.next_step+' · '+person.workflow.government_types.length+'/2 government · '+person.workflow.bank_types.length+'/1 bank',box);
  const kinds=Object.keys(person.fields||{});if(!kinds.length){node('p','Attach a document using +. I will classify it and fill the fields.',box);return;}
  const events=person.audit||[];const last=action=>Math.max(-1,...events.map((e,i)=>e.action===action?i:-1));
  const confirmed=last('fields_confirmed')>last('document_extracted');

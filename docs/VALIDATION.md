@@ -3,7 +3,7 @@
 ## Verified
 
 - Python 3.12.14; Tesseract 5.3.4 on Linux.
-- 28 automated tests passed. Coverage includes authentication/session expiry, CSRF/origin/host enforcement, scoped single-use CRUD confirmations, stale and expired actions, upload prefill/provenance, atomic imports, literal-safe workbook export, request limits and three simulated cloud-provider contracts.
+- 33 automated tests passed. Added checks cover exact employee binding, retained upload history, latest-version evidence, distinct document minimums and contextual follow-up workflow queries. Coverage includes authentication/session expiry, CSRF/origin/host enforcement, scoped single-use CRUD confirmations, stale and expired actions, upload prefill/provenance, atomic imports, literal-safe workbook export, request limits and three simulated cloud-provider contracts.
 - Black formatting, Ruff lint and Git whitespace checks passed.
 - Real browser acceptance against the actual single-server application passed: login → chat + upload → classification/extraction → employee draft → prefilled document review → audit → confirmed phone update → actual Excel download → confirmed deletion. Mobile layout was checked; no browser page errors were reported.
 - Real Tesseract extraction of the supplied PAN matched all four manually checked fields: name, father's name, date of birth and PAN. This test used genuine OCR, not the mock fixture. The original photograph and downloaded test workbook are excluded from the deliverable.

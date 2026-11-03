@@ -37,6 +37,16 @@ def demo_plan(text, context):
         return Plan(
             reply="Hi. I can add, find, update and delete employees. Attach a document with + to start onboarding. This is demo chat; configure a provider for broader natural-language conversation."
         )
+    if lower in ("what next", "what is next", "what should i do next", "next"):
+        return Plan(action="next")
+    if lower in ("status", "progress", "how is the onboarding going"):
+        return Plan(action="status")
+    if lower in ("what is missing", "missing", "what documents are missing"):
+        return Plan(action="missing")
+    if lower in ("documents", "show documents", "what documents do they have"):
+        return Plan(action="documents")
+    if lower in ("history", "show history"):
+        return Plan(action="history")
     if lower in ("cancel", "stop"):
         return Plan(action="cancel")
     if lower in (

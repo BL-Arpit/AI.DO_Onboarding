@@ -1,0 +1,185 @@
+{
+  "version": 2,
+  "purpose": "Semantic examples and routing guidance, not fuzzy matching or training data. Loaded by the conversational provider.",
+  "rules": [
+    "Only exact employee identifiers may bind a target.",
+    "Clarify ambiguous references.",
+    "Use conversation context for selected-person pronouns.",
+    "All mutations require explicit server confirmation.",
+    "Never treat document minimum as identity verification.",
+    "One action at a time; clarify compound requests."
+  ],
+  "intents": [
+    {
+      "id": "create",
+      "action": "create",
+      "examples": [
+        "Onboard a new colleague",
+        "Please register Anil with these details",
+        "Add this person to the master sheet",
+        "Start onboarding someone new"
+      ],
+      "requires_employee": false,
+      "confirmation_required": true
+    },
+    {
+      "id": "read",
+      "action": "read",
+      "examples": [
+        "Show the record for anil@example.com",
+        "Bring up Anil Kumar",
+        "Who is the employee we selected?",
+        "Let me see their details"
+      ],
+      "requires_employee": true,
+      "confirmation_required": false
+    },
+    {
+      "id": "update",
+      "action": "update",
+      "examples": [
+        "Their phone number has changed to 9876543210",
+        "Correct her email address",
+        "Move him to the Acme client",
+        "Actually the name should be Anil Kumar"
+      ],
+      "requires_employee": true,
+      "confirmation_required": true
+    },
+    {
+      "id": "delete",
+      "action": "delete",
+      "examples": [
+        "Remove this employee",
+        "Delete the selected person after I review",
+        "Remove anil@example.com from the active register"
+      ],
+      "requires_employee": true,
+      "confirmation_required": true
+    },
+    {
+      "id": "list",
+      "action": "list",
+      "examples": [
+        "Show all employees",
+        "Who is assigned to Acme?",
+        "List incomplete onboarding records",
+        "Show employees in the technical track"
+      ],
+      "requires_employee": false,
+      "confirmation_required": false
+    },
+    {
+      "id": "upload",
+      "action": "upload",
+      "examples": [
+        "I have another government document for him",
+        "Add her bank passbook",
+        "Attach another PAN version",
+        "I want to add documents to someone imported from Excel"
+      ],
+      "requires_employee": false,
+      "confirmation_required": false
+    },
+    {
+      "id": "status",
+      "action": "status",
+      "examples": [
+        "How far along is her onboarding?",
+        "Is this employee ready?",
+        "What is the current progress?"
+      ],
+      "requires_employee": true,
+      "confirmation_required": false
+    },
+    {
+      "id": "next",
+      "action": "next",
+      "examples": [
+        "What should I do next?",
+        "Continue this onboarding",
+        "What is the next step for him?"
+      ],
+      "requires_employee": true,
+      "confirmation_required": false
+    },
+    {
+      "id": "missing",
+      "action": "missing",
+      "examples": [
+        "What are we still waiting for?",
+        "Does she need another government document?",
+        "What is missing from his checklist?"
+      ],
+      "requires_employee": true,
+      "confirmation_required": false
+    },
+    {
+      "id": "documents",
+      "action": "documents",
+      "examples": [
+        "Which documents do we have?",
+        "Show her uploaded documents",
+        "How many bank documents are on file?"
+      ],
+      "requires_employee": true,
+      "confirmation_required": false
+    },
+    {
+      "id": "history",
+      "action": "history",
+      "examples": [
+        "What changed on this employee?",
+        "Show the recent activity",
+        "Who updated this record?"
+      ],
+      "requires_employee": true,
+      "confirmation_required": false
+    },
+    {
+      "id": "audit",
+      "action": "audit",
+      "examples": [
+        "Check whether the names agree",
+        "Run the consistency review",
+        "Review the documents for issues"
+      ],
+      "requires_employee": true,
+      "confirmation_required": false
+    },
+    {
+      "id": "export",
+      "action": "export",
+      "examples": [
+        "Download the master sheet",
+        "Give me one Excel file for everyone",
+        "Export all active employees"
+      ],
+      "requires_employee": false,
+      "confirmation_required": false
+    },
+    {
+      "id": "cancel",
+      "action": "cancel",
+      "examples": [
+        "Cancel this change",
+        "Leave that pending update alone",
+        "Stop onboarding this draft"
+      ],
+      "requires_employee": false,
+      "confirmation_required": false
+    },
+    {
+      "id": "reply",
+      "action": "reply",
+      "examples": [
+        "Explain the onboarding requirements",
+        "What document types can I upload?",
+        "I meant the other employee",
+        "Can you do two things for me?"
+      ],
+      "requires_employee": false,
+      "confirmation_required": false
+    }
+  ]
+}

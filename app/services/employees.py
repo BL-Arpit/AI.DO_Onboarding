@@ -19,12 +19,19 @@ def get_employee(db, eid, details=True):
         raise HTTPException(404, "Employee not found.")
     if details:
         person["documents"] = [
-            record(r) for r in db.execute("SELECT * FROM documents WHERE employee_id=?", (eid,))
+            record(r)
+            for r in db.execute(
+                "SELECT * FROM documents WHERE employee_id=? ORDER BY rowid", (eid,)
+            )
         ]
         person["audit"] = [
             dict(r)
             for r in db.execute("SELECT * FROM audit WHERE employee_id=? ORDER BY id", (eid,))
         ]
+    if details:
+        from app.services.onboarding import workflow
+
+        person["workflow"] = workflow(person)
     return person
 
 
@@ -118,7 +125,7 @@ def save_document(db, eid, version, result, user):
     kind = result["extraction"]["document_type"]
     fields = person["fields"]
     fields[kind] = result["extraction"]["extracted_data"]
-    db.execute("DELETE FROM documents WHERE employee_id=? AND kind=?", (eid, kind))
+    # Keep every upload as document history; fields hold the latest version per type.
     db.execute(
         "INSERT INTO documents VALUES(?,?,?,?,?)",
         (
@@ -171,12 +178,10 @@ def verify_employee(db, eid, version, user):
     person = get_employee(db, eid)
     check_version(person, version)
     issues = []
-    for kind in ("PAN_CARD", "AADHAAR_CARD"):
-        if kind not in person["fields"]:
-            issues.append("Missing " + kind)
-    if not {"CHEQUE", "BANK_PASSBOOK"}.intersection(person["fields"]):
-        issues.append("Missing bank document")
-    for doc in person["documents"]:
+    for item in person["workflow"]["missing"]:
+        issues.append("Missing " + item)
+    latest_documents = {d["kind"]: d for d in person["documents"]}
+    for doc in latest_documents.values():
         extraction = doc["extraction"]
         data = person["fields"].get(doc["kind"], {})
         if extraction.get("is_mock"):
@@ -194,7 +199,7 @@ def verify_employee(db, eid, version, user):
         if name and name.casefold().split() != person["name"].casefold().split():
             issues.append(doc["kind"] + ": name differs from employee.")
     result = {
-        "status": "needs_review",
+        "status": "needs_review" if issues else "checklist_complete",
         "issues": issues,
         "summary": "Consistency audit completed. Government, background and DL verification are not connected.",
     }

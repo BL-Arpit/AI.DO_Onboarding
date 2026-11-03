@@ -99,7 +99,7 @@ def resolve(plan, state):
             if plan.target.casefold()
             in (p["id"].casefold(), p["email"].casefold(), p["name"].casefold())
         ]
-        return exact or matches
+        return exact
     if state.get("selected_id"):
         with connection() as db:
             try:
@@ -122,12 +122,29 @@ def apply_plan(db, user, conv, state, plan):
         state.pop("draft", None)
         state.pop("pending_id", None)
         state.pop("preview_ids", None)
+        state.pop("deferred_plan", None)
+        state.pop("choice_ids", None)
         return {"reply": "Cancelled. No pending change was applied.", "action": "reply"}
     if plan.action == "create":
         state["draft"] = {**state.get("draft", {}), **plan.fields}
         return draft_reply(db, user, conv, state)
     if plan.action == "list":
         state.pop("selected_id", None)
+        if plan.target:
+            from app.services.onboarding import workflow
+
+            rows = [employees.get_employee(db, p["id"]) for p in employees.list_employees()]
+            rows = [
+                p
+                for p in rows
+                if plan.target.casefold()
+                in (p["client"].casefold(), p["track"].casefold(), workflow(p)["stage"])
+            ]
+            return {
+                "reply": f"I found {len(rows)} employees in that group.",
+                "action": "choose",
+                "choices": [{"id": p["id"], "name": p["name"], "email": p["email"]} for p in rows],
+            }
         return {"reply": "Here is the master employee sheet.", "action": "list"}
     if plan.action == "export":
         return {"reply": "Preparing the master workbook.", "action": "export"}
@@ -148,13 +165,33 @@ def apply_plan(db, user, conv, state, plan):
             "action": "choose",
         }
     if len(matches) > 1:
+        state["deferred_plan"] = plan.model_dump()
+        state["choice_ids"] = [p["id"] for p in matches]
         return {
-            "reply": "Several employees match. Choose one, then repeat the request.",
+            "reply": "I found more than one person with that exact name. Which one did you mean?",
             "action": "choose",
             "choices": [{"id": p["id"], "name": p["name"], "email": p["email"]} for p in matches],
         }
     person = employees.get_employee(db, matches[0]["id"])
     state["selected_id"] = person["id"]
+    if plan.action in ("status", "next", "missing", "documents", "history"):
+        if plan.action == "history":
+            reply = "Recent activity: " + "; ".join(
+                e["action"].replace("_", " ") for e in person["audit"][-10:]
+            )
+        elif plan.action == "documents":
+            reply = (
+                "Documents on file: "
+                + (
+                    ", ".join(d["kind"].replace("_", " ") for d in person["documents"])
+                    or "none yet"
+                )
+                + ". "
+                + person["workflow"]["next_step"]
+            )
+        else:
+            reply = person["name"] + ": " + person["workflow"]["next_step"]
+        return {"reply": reply, "action": "employee", "employee": person}
     if plan.action == "read":
         return {
             "reply": "Here is " + person["name"] + ".",
@@ -295,6 +332,20 @@ def chat(body, user, provider):
             state, _ = state_row(db, user, conv)
             person = employees.get_employee(db, text[7:].strip())
             state["selected_id"] = person["id"]
+            if state.get("deferred_plan") and person["id"] not in state.get("choice_ids", []):
+                raise HTTPException(409, "Choose an employee from the current clarification.")
+            deferred = state.pop("deferred_plan", None)
+            state.pop("choice_ids", None)
+            if deferred:
+                deferred["target"] = person["id"]
+                return store(
+                    db,
+                    user,
+                    conv,
+                    state,
+                    text,
+                    apply_plan(db, user, conv, state, Plan.model_validate(deferred)),
+                )
             return store(
                 db,
                 user,
@@ -309,7 +360,7 @@ def chat(body, user, provider):
             )
     if text.lower() in ("cancel", "stop"):
         plan = Plan(action="cancel")
-    elif state.get("draft") is not None:
+    elif state.get("draft") is not None and provider.entry["kind"] == "demo":
         missing = [k for k in ("name", "email", "phone") if not state["draft"].get(k)]
         values = details(text)
         if missing:
@@ -333,28 +384,9 @@ def chat(body, user, provider):
         else:
             plan = Plan(action="create", fields=values)
     else:
-        with connection() as db:
-            history = [
-                dict(r)
-                for r in db.execute(
-                    "SELECT role,content FROM chat_messages WHERE user_id=? AND conversation_id=? ORDER BY id DESC LIMIT 8",
-                    (user["id"], conv),
-                )
-            ][::-1]
-            try:
-                person = (
-                    employees.get_employee(db, state["selected_id"], False)
-                    if state.get("selected_id")
-                    else None
-                )
-            except HTTPException:
-                person = None
-        selected = (
-            {k: person[k] for k in ("id", "name", "email", "phone", "client", "track", "status")}
-            if person
-            else None
-        )
-        plan = provider.plan(text, {"selected_employee": selected, "history": history})
+        from app.chat.context import build_context
+
+        plan = provider.plan(text, build_context(user, conv, state))
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         current, current_version = state_row(db, user, conv)
@@ -406,7 +438,7 @@ def attach(content, filename, conv, user, pipeline):
                 (pid, user["id"], conv, json.dumps(result), time.time() + 600),
             )
             previews = state.get("preview_ids", [])
-            if len(previews) >= 5:
+            if len(previews) >= 20:
                 raise HTTPException(
                     422,
                     "Finish or cancel this onboarding before adding more documents.",
