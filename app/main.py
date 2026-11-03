@@ -161,12 +161,12 @@ def chat(body: ChatInput,user=Depends(current_user)):
     return route_message(body,{**user,'conversation_key':user['id']+':'+body.conversation_id},verify)
 
 @app.post('/api/employees/{eid}/documents')
-def upload_document(eid: str,file: UploadFile=File(...),user=Depends(current_user)):
+def upload_document(eid: str,file: UploadFile=File(...),document_type: str=Form(default=''),user=Depends(current_user)):
     with connection() as db:
         e=employee_access(db,eid,user);editable(e,user);version=e['version']
     content=file.file.read(10*1024*1024+1)
     if not content or len(content)>10*1024*1024:raise HTTPException(413,'Upload a document up to 10 MB.')
-    classification,extraction=process_document(content,file.filename or '')
+    classification,extraction=process_document(content,file.filename or '',document_type or None) if document_type else process_document(content,file.filename or '')
     with connection() as db:
         db.execute('BEGIN IMMEDIATE')
         e=employee_access(db,eid,user);editable(e,user)

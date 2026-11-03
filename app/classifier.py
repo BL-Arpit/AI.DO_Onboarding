@@ -4,6 +4,8 @@ from pathlib import Path
 
 import numpy as np
 import onnxruntime as ort
+# Request the runtime telemetry opt-out before creating sessions.
+ort.disable_telemetry_events()
 from PIL import Image, ImageOps
 
 IMG_SIZE = 224

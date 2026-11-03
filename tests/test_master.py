@@ -39,3 +39,17 @@ def test_document_fields_become_master_columns_without_duplicate_rows():
     assert sheet['B2'].data_type=='s'
     assert sheet.cell(2,headers.index('verification_status')+1).value=='needs_review'
     workbook.close()
+
+def test_ocr_control_characters_do_not_break_master_download(client):
+    from app.database import connection
+    import json
+    response=client.post('/api/employees',json={'name':'Ravi','email':'ravi@example.com','phone':'9876543210'})
+    eid=response.json()['id']
+    with connection() as db:
+        db.execute('UPDATE employees SET fields=? WHERE id=?',(json.dumps({'PAN_CARD':{'name':'RAVI\x0cKUMAR'}}),eid))
+    response=client.get('/api/employees/export')
+    assert response.status_code==200
+    workbook=load_workbook(io.BytesIO(response.content))
+    headers=[c.value for c in workbook.active[1]]
+    assert workbook.active.cell(2,headers.index('PAN_CARD.name')+1).value=='RAVIKUMAR'
+    workbook.close()

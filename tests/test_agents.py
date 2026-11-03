@@ -5,7 +5,7 @@ from app.agents.chat import chat_agent,MODEL_DIR
 
 def test_local_ann_routes_paraphrase_to_onboarding(client):
     response=client.post('/api/chat',json={'message':'please onboard a person'}).json()
-    assert response['chat_model']['model']=='local_ann_v1'
+    assert response['chat_model']['model']=='local_ann_onnx_v1'
     assert response['chat_model']['intent']=='add_person'
     assert response['agent_trace']==['chat_agent','onboarding_agent']
     assert response['action']=='collect'

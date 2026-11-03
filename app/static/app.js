@@ -34,13 +34,13 @@ async function send(text){
  if(result.action==='import')showExcel();
  if(result.action==='list')await showMaster();
  if(result.action==='upload_document')$('attachments').click();
- if(result.action==='export')location.assign('/api/employees/export');
+ if(result.action==='export')await downloadMaster();
  await refresh();if(result.employee_id)await openEmployee(result.employee_id);else if(selected)await openEmployee(selected.id);
 }
 async function openEmployee(id){
  selected=await api('/employees/'+id);const d=$('detail');$('chatlog').append(d);d.hidden=false;d.replaceChildren();element('h2',selected.name,d);element('span',selected.status,d).className='tag';element('p',selected.email+' · '+selected.phone,d);element('p',selected.track+(selected.client?' · '+selected.client:''),d).className='muted';
  const editable=selected.status==='draft'&&['operator','owner','hr_admin','employee'].includes(me.role);
- if(editable){const form=element('form',undefined,d);const label=element('label','Government or bank document',form);const file=element('input',undefined,label);file.type='file';file.accept='image/*,.pdf';file.required=true;const submit=element('button','Upload document',form);form.onsubmit=e=>{e.preventDefault();guard(async()=>{const body=new FormData();body.append('file',file.files[0]);const r=await api('/employees/'+id+'/documents',{method:'POST',body});bubble('Document read: '+r.extraction.document_type+(r.classification.needs_review?' · Check classification':''));await openEmployee(id);},submit);};}
+ if(editable){const form=element('form',undefined,d);const label=element('label','Government or bank document',form);const file=element('input',undefined,label);file.type='file';file.accept='image/*,.pdf';file.required=true;const typeLabel=element('label','Document type',form);const type=element('select',undefined,typeLabel);type.id='documentType';for(const [value,title] of [['','Auto'],['PAN_CARD','PAN'],['AADHAAR_CARD','Aadhaar'],['BANK_PASSBOOK','Passbook'],['CHEQUE','Cheque']]){const opt=element('option',title,type);opt.value=value;}const submit=element('button','Upload document',form);form.onsubmit=e=>{e.preventDefault();guard(async()=>{const body=new FormData();body.append('file',file.files[0]);body.append('document_type',type.value);const r=await api('/employees/'+id+'/documents',{method:'POST',body});bubble((r.extraction.status==='partial'?'Partial extraction: ':'Document read: ')+r.extraction.document_type+'. Check and correct the fields.');await openEmployee(id);},submit);};}
  for(const [kind,fields] of Object.entries(selected.fields)){
  const box=element('fieldset',undefined,d);element('legend',kind,box);
  for(const [key,value] of Object.entries(fields)){if(key==='additional_fields')continue;const label=element('label',key.replaceAll('_',' '),box);const input=element('input',undefined,label);input.value=value??'';input.disabled=!editable;input.oninput=()=>{selected.fields[kind][key]=input.value;};}}
@@ -88,7 +88,7 @@ for(const id of ['manage','passwordButton','logout'])$('accountTools').append($(
 // Keep only three entry actions; all forms and reviews appear in the chat.
 const tools=$('add').parentElement;for(const a of tools.querySelectorAll('a'))a.remove();button('Master sheet',()=>showMaster(),tools);
 $('attach').onclick=()=>{$('attachments').accept='.xls,.xlsx,.pdf,image/*';$('attachments').click();};
-async function acceptFiles(files){if(busy)return;busy=true;$('attach').disabled=true;try{await api('/me');for(const file of files){$('attachmentsStatus').textContent='Reading '+file.name+'…';if(/\.xlsx?$/i.test(file.name)){showExcel();const input=$('excelForm').elements.file;const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;await previewExcel(new FormData($('excelForm')));if(files.length>1)bubble('Import this workbook first, then attach the next file.');break;}else{if(!selected){bubble('Choose a person before adding their document.');const b=bubble('People');for(const row of await api('/employees'))button(row.name,async()=>{await openEmployee(row.id);await acceptFiles([file]);},b);break;}const body=new FormData();body.append('file',file);bubble(file.name,'user');const result=await api('/employees/'+selected.id+'/documents',{method:'POST',body});bubble('Document read: '+result.extraction.document_type+'. Check the fields below.');await openEmployee(selected.id);}}}finally{busy=false;$('attach').disabled=false;$('attachmentsStatus').textContent='';$('attachments').value='';}}
+async function acceptFiles(files){if(busy)return;busy=true;$('attach').disabled=true;try{await api('/me');for(const file of files){$('attachmentsStatus').textContent='Reading '+file.name+'…';if(/\.xlsx?$/i.test(file.name)){showExcel();const input=$('excelForm').elements.file;const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;await previewExcel(new FormData($('excelForm')));if(files.length>1)bubble('Import this workbook first, then attach the next file.');break;}else{if(!selected){bubble('Choose a person before adding their document.');const b=bubble('People');for(const row of await api('/employees'))button(row.name,async()=>{await openEmployee(row.id);await acceptFiles([file]);},b);break;}const body=new FormData();body.append('file',file);body.append('document_type',$('documentType')?.value||'');bubble(file.name,'user');const result=await api('/employees/'+selected.id+'/documents',{method:'POST',body});bubble('Document read: '+result.extraction.document_type+'. Check the fields below.');await openEmployee(selected.id);}}}finally{busy=false;$('attach').disabled=false;$('attachmentsStatus').textContent='';$('attachments').value='';}}
 $('attachments').onchange=e=>guard(()=>acceptFiles(Array.from(e.target.files)));
 let dragDepth=0;document.addEventListener('dragenter',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files')){e.preventDefault();dragDepth++;$('dropHint').hidden=false;}});document.addEventListener('dragover',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files'))e.preventDefault();});document.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;$('dropHint').hidden=true;}});document.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('dropHint').hidden=true;guard(()=>acceptFiles(Array.from(e.dataTransfer?.files||[])));});
 const originalSend=send;send=async text=>{if(busy)return;busy=true;$('chatForm').querySelectorAll('button,input,textarea').forEach(e=>e.disabled=true);try{if(currentChat.title==='New conversation'){currentChat.title=text.slice(0,36);$('chatTitle').textContent=currentChat.title;renderConversations();}await originalSend(text);}finally{busy=false;$('chatForm').querySelectorAll('button,input,textarea').forEach(e=>e.disabled=false);$('chatForm').elements.message.focus();}};
@@ -102,8 +102,15 @@ messageBox.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.prev
 
 async function showMaster(){
  const data=await api('/employees/master');const card=bubble('Master employee sheet');
- const link=element('a','Download Excel',card);link.href='/api/employees/export';link.download='master_employees.xlsx';
+ button('Download Excel',()=>downloadMaster(),card);
  if(!data.rows.length){element('p','No employees yet.',card);return;}
  const view=table(data.rows,data.columns.map(k=>k.replaceAll('_',' ')),card);
  Array.from(view.tBodies[0].rows).forEach((row,index)=>{row.cells[0].replaceChildren();button('Open',()=>openEmployee(data.rows[index][0]),row.cells[0]);});
+}
+
+async function downloadMaster(){
+ const response=await fetch('/api/employees/export',{credentials:'same-origin'});
+ if(!response.ok){let detail='';try{detail=(await response.json()).detail;}catch{}throw Error(typeof detail==='string'&&detail?detail:'Excel download failed ('+response.status+'). Sign in again and retry.');}
+ const blob=await response.blob();if(!blob.size)throw Error('The server returned an empty workbook.');
+ const url=URL.createObjectURL(blob);const link=element('a');link.href=url;link.download='master_employees.xlsx';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
 }

@@ -41,7 +41,9 @@ def train():
               'seed':42,'labels':labels,'vocabulary':vocabulary,'training_examples':len(rows),
               'parameters':sum(p.size for p in parameters.values()),'epochs':1200,
               'training_sha256':hashlib.sha256((ROOT/'training/intents.json').read_bytes()).hexdigest()}
-    (MODEL_DIR/'metadata.json').write_text(json.dumps(metadata,indent=2));load_model.cache_clear()
+    (MODEL_DIR/'metadata.json').write_text(json.dumps(metadata,indent=2))
+    from training.export_onnx import export_model
+    export_model();load_model.cache_clear()
     heldout=json.loads((ROOT/'training/evaluation.json').read_text())
     results=[{'text':text,'expected':label,**chat_agent(text)} for label,phrases in heldout.items() for text in phrases]
     report={'training_examples':len(rows),'held_out_examples':len(results),

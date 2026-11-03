@@ -1,3 +1,22 @@
+## Extraction, download and ONNX update — 3 November 2026
+
+Install both application and extraction dependencies, then start both services from one terminal:
+
+```bash
+python -m pip install -r requirements.txt -r requirements-advo.txt
+python run.py
+```
+
+Set up `.env` from `.env.example` first. Install the Tesseract executable separately. In `vendor/advo/.env`, set its actual path on Windows, for example `TESSERACT_PATH=C:/Program Files/Tesseract-OCR/tesseract.exe`, and `TESSERACT_LANG=eng`. Leave Gemini fallback disabled. The launcher checks OCR readiness before starting the app and uses the same Python environment for both services. Ctrl+C stops the services it started. It can reuse an already-running healthy extraction service.
+
+Extraction now uses OCR evidence for automatic document typing, rather than forcing the image model's top guess. If Auto fails, choose PAN/Aadhaar/Passbook/Cheque in the inline employee document form and upload again. Empty extraction is an error, not a successful upload. Configuration, connection and OCR failures display their specific cause in chat. Local extraction calls bypass proxy environment variables. The vendor settings load the vendor `.env` explicitly and allow at least 20 seconds for OCR, including when an older `.env` still specifies two seconds.
+
+**Download Excel** now checks the authenticated response, downloads workbook bytes and displays HTTP failures in chat. Export strips invalid Excel control characters from OCR text, which could previously stop workbook generation. All saved employees remain on the single master worksheet.
+
+Chat now runs the bundled **`model/chat/intent_ann.onnx`** using ONNX Runtime. The document model remains **`model/doc_classifier.onnx`**. Training and export are separate: install `requirements-dev.txt` and run `python training/train.py` to retrain and export, or `python training/export_onnx.py` to re-export existing weights. No training or model download is needed to start the app.
+
+**Verification limit:** automatic approval review blocked live startup in this environment due to reported Microsoft telemetry, even after calling the runtime's telemetry opt-out. No further live startup attempts were made. Direct Tesseract extraction, browser download with simulated API responses, and offline ONNX graph checks are recorded in `VALIDATION.md`. Native runtime live acceptance remains unverified here.
+
 ## One master employee sheet
 
 Every chat and confirmed Excel import saves to the same employee register. Conversations only separate messages and pending drafts; they never create separate employee sheets. Use **Master sheet** in chat or type `list` to view the complete register and download `master_employees.xlsx`. The workbook has one worksheet, **Master Employees**, with one row per employee and columns for contact details, client, track, workflow status, verification status and all extracted document fields. New document field columns are added automatically. Existing duplicate-email protection remains active. No conversation filter is applied to the master register. Existing role permissions still determine which records an employee or recruiter can access; the Owner sees all employees. The downloadable workbook is generated from the current saved data each time, so changes appear on the same employee row instead of a new chat-specific sheet.
@@ -60,7 +79,7 @@ make the task predictable; the ANN does not invent employee details.
 
 | Module | Responsibility |
 | --- | --- |
-| `app/agents/chat.py` | Load local ANN weights; infer intent and confidence |
+| `app/agents/chat.py` | Run `intent_ann.onnx` with ONNX Runtime; infer intent and confidence |
 | `app/agents/router.py` | Dispatch intent and conversation context to the correct agent |
 | `app/agents/onboarding.py` | Ask for missing details, show preview, accept confirmation |
 | `app/people.py` | Validate profile and save a person with audit history |
@@ -155,8 +174,10 @@ The vendor directory is an extraction-only subset of the supplied ADVO code.
 
 ## The trained chat model
 
-- NumPy ANN: normalized word/bigram features → Dense(48, ReLU) → 17 intent scores.
-- `model/chat/weights.npz`: included trained weights, about 142 KB.
+- Custom ANN: normalized word/bigram features → Dense(48, ReLU) → 17 intent scores. Trained with NumPy; served using ONNX Runtime.
+- `model/chat/intent_ann.onnx`: included inference model. `weights.npz` preserves its training weights; it is not used for live chat inference.
+- `training/export_onnx.py`: exports the training weights, checks the ONNX graph and compares predictions on all 345 training/evaluation phrases. `model/chat/onnx_export.json` records the result.
+- This is a custom intent ANN, with no pretrained chat-LLM base. ONNX is the exported graph format, not a training model. It identifies onboarding intents; it does not generate free-form conversation.
 - `training/intents.json`: 273 curated English training examples, all synthetic.
 - `training/evaluation.json`: 72 separate held-out example messages.
 - `model/chat/evaluation.json`: actual evaluation results, including rejected cases.

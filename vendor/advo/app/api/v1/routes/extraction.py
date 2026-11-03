@@ -29,7 +29,10 @@ def _get_extraction_service() -> DocumentExtractionService:
 
 @router.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "extraction"}
+    service=_get_extraction_service()
+    if service.ocr is None:
+        raise HTTPException(503,"Tesseract is unavailable. Check vendor/advo/.env TESSERACT_PATH and TESSERACT_LANG, then restart.")
+    return {"status": "healthy", "service": "extraction", "ocr": "tesseract"}
 
 
 @router.post("/api/v1/extraction/extract", response_model=ExtractionResponse)

@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[2]/'.env')
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
@@ -57,5 +58,5 @@ TESSERACT_PSM = int(os.getenv("TESSERACT_PSM", "3"))
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "5"))
 MAX_IMAGE_PIXELS = int(os.getenv("MAX_IMAGE_PIXELS", "40000000"))
 TESSERACT_TIMEOUT_SECONDS = int(os.getenv("TESSERACT_TIMEOUT_SECONDS", "30"))
-OCR_REQUEST_TIMEOUT_SECONDS = float(os.getenv("OCR_REQUEST_TIMEOUT_SECONDS", "20.0"))
+OCR_REQUEST_TIMEOUT_SECONDS = max(20.0, float(os.getenv("OCR_REQUEST_TIMEOUT_SECONDS", "20.0")))
 

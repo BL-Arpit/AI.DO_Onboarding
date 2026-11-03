@@ -4,6 +4,9 @@ import re
 from functools import lru_cache
 from pathlib import Path
 import numpy as np
+import onnxruntime as ort
+# Request the runtime telemetry opt-out before creating sessions.
+ort.disable_telemetry_events()
 
 MODEL_DIR=Path(__file__).resolve().parents[2]/'model'/'chat'
 THRESHOLD=0.65
@@ -26,18 +29,16 @@ def vectorize(text,vocabulary):
 @lru_cache(maxsize=1)
 def load_model():
     meta=json.loads((MODEL_DIR/'metadata.json').read_text())
-    with np.load(MODEL_DIR/'weights.npz',allow_pickle=False) as values:
-        weights={key:values[key].copy() for key in values.files}
-    return meta,weights
+    options=ort.SessionOptions();options.intra_op_num_threads=1
+    session=ort.InferenceSession(str(MODEL_DIR/'intent_ann.onnx'),options,providers=['CPUExecutionProvider'])
+    return meta,session
 
 def chat_agent(text):
-    meta,weights=load_model()
+    meta,session=load_model()
     features=vectorize(text,meta['vocabulary'])
-    hidden=np.maximum(features@weights['w1']+weights['b1'],0)
-    logits=hidden@weights['w2']+weights['b2']
-    scores=np.exp(logits-logits.max());scores/=scores.sum()
+    scores=session.run(['probabilities'],{'features':features.reshape(1,-1)})[0][0]
     order=np.argsort(scores)[::-1];top=int(order[0]);confidence=float(scores[top])
     predicted=meta['labels'][top]
     # Low confidence/OOV messages never silently choose a task.
     route=predicted if features.any() and confidence>=THRESHOLD and confidence-float(scores[order[1]])>=MIN_MARGIN else 'unknown'
-    return {'intent':route,'predicted_intent':predicted,'confidence':round(confidence,4),'model':'local_ann_v1'}
+    return {'intent':route,'predicted_intent':predicted,'confidence':round(confidence,4),'model':'local_ann_onnx_v1','runtime':'onnxruntime','model_file':'intent_ann.onnx'}

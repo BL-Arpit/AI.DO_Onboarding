@@ -3,6 +3,7 @@ import re
 import zipfile
 from pathlib import Path
 from openpyxl import Workbook,load_workbook
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from .people import clean_person
 
 # Deliberately explicit aliases: no guessing which personal data column is a name.
@@ -102,8 +103,8 @@ def master_table(employees):
 def export_excel(employees):
     workbook=Workbook();sheet=workbook.active;sheet.title='Master Employees'
     data=master_table(employees)
-    sheet.append(data['columns'])
-    for row in data['rows']:sheet.append(row)
+    sheet.append([ILLEGAL_CHARACTERS_RE.sub('',cell_text(v)) for v in data['columns']])
+    for row in data['rows']:sheet.append([ILLEGAL_CHARACTERS_RE.sub('',cell_text(v)) for v in row])
     # Force strings to literal cells, including values beginning with =, +, -, @.
     for row in sheet:
         for cell in row:
