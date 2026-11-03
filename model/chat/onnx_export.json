@@ -1,9 +1,0 @@
-{
-  "model": "intent_ann.onnx",
-  "runtime": "onnxruntime",
-  "opset": 17,
-  "examples_checked": 345,
-  "max_probability_difference": 1.7881393432617188e-07,
-  "predictions_identical": true,
-  "source": "Custom ANN weights trained with training/intents.json, not a pretrained chat LLM."
-}

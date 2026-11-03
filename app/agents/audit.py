@@ -14,6 +14,8 @@ def verification_agent(employee, documents):
         issues.append('Missing bank document')
     for doc in documents:
         c, e = doc['classification'], doc['extraction']
+        if e.get('is_mock') or e.get('extraction_source')=='mock':
+            issues.append(doc['kind']+': MOCK data, not OCR or verified identity')
         if c.get('needs_review') or c.get('type_disagreement') or e.get('status') != 'success':
             issues.append(doc['kind'] + ': document needs review')
         extracted = e.get('extracted_data') or {}

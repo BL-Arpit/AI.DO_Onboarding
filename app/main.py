@@ -65,7 +65,7 @@ def logout(request: Request,response: Response):
 
 @app.get('/api/me')
 def me(user=Depends(current_user)):
-    return {k:user[k] for k in ('id','name','email','role')}|{'stage':STAGE}
+    return {k:user[k] for k in ('id','name','email','role')}|{'stage':STAGE,'extraction_mode':os.getenv('EXTRACTION_MODE','tesseract')}
 
 @app.get('/')
 def index():return FileResponse(Path(__file__).parent/'static/index.html')

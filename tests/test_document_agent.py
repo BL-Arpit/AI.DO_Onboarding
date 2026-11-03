@@ -9,6 +9,7 @@ def image_bytes():
     out=io.BytesIO();Image.new('RGB',(100,100),'white').save(out,format='PNG');return out.getvalue()
 
 def setup(monkeypatch,status=200,payload=None):
+    monkeypatch.setenv("EXTRACTION_MODE","tesseract")
     monkeypatch.setattr(document,'classify',lambda content:{'doc_type':'aadhaar','needs_review':False})
     captured={}
     def post(url,**kwargs):

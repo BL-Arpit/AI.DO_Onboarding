@@ -17,8 +17,12 @@ def main():
     children=[]
     try:
         try:
-            check=httpx.get(ocr_url+'/health',timeout=2,trust_env=False)
-            ready=check.is_success and check.json().get('service')=='extraction'
+            if os.getenv('EXTRACTION_MODE','tesseract')=='mock_pan':
+                ready=True
+                print('PAN DEMO MODE: annotated mock extraction; OCR service is not started.',flush=True)
+            else:
+                check=httpx.get(ocr_url+'/health',timeout=2,trust_env=False)
+                ready=check.is_success and check.json().get('service')=='extraction'
         except (httpx.HTTPError,ValueError):ready=False
         if not ready:
             if address.hostname not in ('localhost','127.0.0.1','::1'):

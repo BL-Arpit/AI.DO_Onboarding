@@ -3,9 +3,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-import onnxruntime as ort
-# Request the runtime telemetry opt-out before creating sessions.
-ort.disable_telemetry_events()
 from PIL import Image, ImageOps
 
 IMG_SIZE = 224
@@ -21,6 +18,8 @@ _labels = None
 def _load():
     global _session, _labels
     if _session is None:
+        import onnxruntime as ort
+        ort.disable_telemetry_events()
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = 1
         _session = ort.InferenceSession(

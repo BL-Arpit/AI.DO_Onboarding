@@ -14,7 +14,7 @@ async function api(path,options={}){
 async function guard(action,button){if(button)button.disabled=true;try{await action();}catch(e){notice(e.message);}finally{if(button)button.disabled=false;}}
 function element(tag,text,parent){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(parent)parent.append(e);return e;}
 function button(label,action,parent){const b=element('button',label,parent);b.type='button';b.onclick=()=>guard(action,b);return b;}
-function bubble(text,who='assistant'){const b=element('div',text,$('chatlog'));b.className='bubble '+who;$('greeting').hidden=true;$('chatlog').scrollTop=$('chatlog').scrollHeight;return b;}
+function bubble(text,who='assistant'){const b=element('div',text,$('chatlog'));b.className='bubble '+who;$('greeting').hidden=true;if($('startActions'))$('startActions').hidden=true;$('chatlog').scrollTop=$('chatlog').scrollHeight;return b;}
 function table(rows,headers,parent){const wrap=element('div',undefined,parent);wrap.className='scroll';const t=element('table',undefined,wrap);const h=element('tr',undefined,element('thead',undefined,t));headers.forEach(x=>element('th',x,h));const body=element('tbody',undefined,t);for(const row of rows){const tr=element('tr',undefined,body);row.forEach(x=>element('td',x??'',tr));}return t;}
 function invitation(url,parent){if(!url)return;const p=element('p','Activation link: ',parent);const link=element('a',url,p);link.href=url;}
 async function refresh(){
@@ -33,27 +33,54 @@ async function send(text){
  if(result.report)element('pre',JSON.stringify(result.report,null,2),b);
  if(result.action==='import')showExcel();
  if(result.action==='list')await showMaster();
- if(result.action==='upload_document')$('attachments').click();
  if(result.action==='export')await downloadMaster();
- await refresh();if(result.employee_id)await openEmployee(result.employee_id);else if(selected)await openEmployee(selected.id);
+ await refresh();const view=result.action==='upload_document'?'upload':undefined;if(result.employee_id)await openEmployee(result.employee_id,view);else if(selected)await openEmployee(selected.id,view);
 }
-async function openEmployee(id){
- selected=await api('/employees/'+id);const d=$('detail');$('chatlog').append(d);d.hidden=false;d.replaceChildren();element('h2',selected.name,d);element('span',selected.status,d).className='tag';element('p',selected.email+' · '+selected.phone,d);element('p',selected.track+(selected.client?' · '+selected.client:''),d).className='muted';
+async function openEmployee(id,view){
+ selected=await api('/employees/'+id);const d=$('detail');$('chatlog').append(d);d.hidden=false;d.replaceChildren();
+ element('h2',selected.name,d);element('p',selected.email+' · '+selected.phone,d);
  const editable=selected.status==='draft'&&['operator','owner','hr_admin','employee'].includes(me.role);
- if(editable){const form=element('form',undefined,d);const label=element('label','Government or bank document',form);const file=element('input',undefined,label);file.type='file';file.accept='image/*,.pdf';file.required=true;const typeLabel=element('label','Document type',form);const type=element('select',undefined,typeLabel);type.id='documentType';for(const [value,title] of [['','Auto'],['PAN_CARD','PAN'],['AADHAAR_CARD','Aadhaar'],['BANK_PASSBOOK','Passbook'],['CHEQUE','Cheque']]){const opt=element('option',title,type);opt.value=value;}const submit=element('button','Upload document',form);form.onsubmit=e=>{e.preventDefault();guard(async()=>{const body=new FormData();body.append('file',file.files[0]);body.append('document_type',type.value);const r=await api('/employees/'+id+'/documents',{method:'POST',body});bubble((r.extraction.status==='partial'?'Partial extraction: ':'Document read: ')+r.extraction.document_type+'. Check and correct the fields.');await openEmployee(id);},submit);};}
- for(const [kind,fields] of Object.entries(selected.fields)){
- const box=element('fieldset',undefined,d);element('legend',kind,box);
- for(const [key,value] of Object.entries(fields)){if(key==='additional_fields')continue;const label=element('label',key.replaceAll('_',' '),box);const input=element('input',undefined,label);input.value=value??'';input.disabled=!editable;input.oninput=()=>{selected.fields[kind][key]=input.value;};}}
- const actions=element('div',undefined,d);actions.className='tools';
- if(editable)button('Confirm fields',async()=>{await api('/employees/'+id+'/fields',{method:'PUT',body:{fields:selected.fields,version:selected.version}});await openEmployee(id);bubble('Fields confirmed.');},actions);
- if(selected.status!=='approved'&&['operator','owner','hr_admin','employee'].includes(me.role))button('Audit',async()=>{const report=await api('/employees/'+id+'/verify',{method:'POST'});const b=bubble(report.summary);element('pre',JSON.stringify(report.issues,null,2),b);await openEmployee(id);},actions);
- if(me.stage>=3){let available=[];
- if(selected.status==='draft'&&['employee','owner','hr_admin'].includes(me.role))available=['submit'];
- if(selected.status==='employee_submitted'&&['owner','hr_admin'].includes(me.role))available=['review','request_changes'];
- if(selected.status==='hr_reviewed'&&['owner','operations'].includes(me.role))available=['approve','request_changes'];
- if(available.length){const label=element('label','Task note',d);const note=element('input',undefined,label);note.id='taskNote';note.placeholder='Review decision or correction required';for(const action of available)button(action.replaceAll('_',' '),async()=>{const result=await api('/chat',{method:'POST',body:{message:action,conversation_id:currentChat.id,employee_id:id,version:selected.version,note:note.value}});bubble(result.reply);await refresh();await openEmployee(id);},actions);}}
- if(Object.keys(selected.verification).length){const details=element('details',undefined,d);element('summary','Audit result',details);element('pre',JSON.stringify(selected.verification,null,2),details);}
- const activity=element('details',undefined,d);element('summary','Activity',activity);for(const item of selected.audit)element('p',item.created+' · '+item.action+(item.details?' · '+item.details:''),activity);
+ const events=selected.audit||[];const latest=action=>Math.max(-1,...events.map((e,i)=>e.action===action?i:-1));
+ const hasFields=Object.keys(selected.fields).length>0;
+ const confirmed=latest('fields_confirmed')>latest('document_extracted');
+ const audited=Object.keys(selected.verification).length>0;
+ const isMock=(selected.documents||[]).some(doc=>doc.extraction?.is_mock||doc.extraction?.extraction_source==='mock');
+ if(isMock)element('p','MOCK PAN data · manually annotated · not OCR or verified identity',d).className='tag';
+ const step=view||(editable?(!hasFields?'upload':!confirmed?'fields':!audited?'audit':'done'):'done');
+ element('p',({upload:'Step 2 · Upload document',fields:'Step 3 · Review fields',audit:'Step 4 · Audit',done:'Current task complete'})[step],d).className='task-step';
+ if(editable&&step==='upload'){
+  if(me.extraction_mode==='mock_pan')element('p','PAN demo: upload the exact PAN.jpeg you supplied. The result is a mock.',d);
+  const form=element('form',undefined,d);const label=element('label','Document',form);const file=element('input',undefined,label);file.type='file';file.accept='image/*,.pdf';file.required=true;
+  const typeLabel=element('label','Document type',form);const type=element('select',undefined,typeLabel);type.id='documentType';
+  for(const [value,title] of [['','Auto'],['PAN_CARD','PAN'],['AADHAAR_CARD','Aadhaar'],['BANK_PASSBOOK','Passbook'],['CHEQUE','Cheque']]){const opt=element('option',title,type);opt.value=value;}
+  const submit=element('button','Continue',form);form.onsubmit=e=>{e.preventDefault();guard(async()=>{const body=new FormData();body.append('file',file.files[0]);body.append('document_type',type.value);const result=await api('/employees/'+id+'/documents',{method:'POST',body});documentMessage(result);await openEmployee(id);},submit);};
+ }else if(step==='fields'){
+  for(const [kind,fields] of Object.entries(selected.fields)){
+   const box=element('fieldset',undefined,d);element('legend',kind,box);
+   for(const [key,value] of Object.entries(fields)){if(key==='additional_fields')continue;const label=element('label',key.replaceAll('_',' '),box);const input=element('input',undefined,label);input.value=value??'';input.disabled=!editable;input.oninput=()=>{selected.fields[kind][key]=input.value;};}
+  }
+  if(!editable)button('Back',()=>openEmployee(id),d);
+  if(editable)button('Confirm and continue',async()=>{await api('/employees/'+id+'/fields',{method:'PUT',body:{fields:selected.fields,version:selected.version}});await openEmployee(id);},d);
+ }else if(step==='audit'){
+  element('p','Run the document consistency audit.',d);
+  button('Run audit',async()=>{const report=await api('/employees/'+id+'/verify',{method:'POST'});const b=bubble(report.summary);element('pre',JSON.stringify(report.issues,null,2),b);await openEmployee(id);},d);
+ }else{
+  if(audited){element('p',selected.verification.summary,d);for(const issue of selected.verification.issues||[])element('p',issue,d);}
+  if(editable)button('Add next document',()=>openEmployee(id,'upload'),d);
+  if(hasFields)button('Review fields',()=>openEmployee(id,'fields'),d);
+  if(me.stage>=3){let available=[];
+   if(selected.status==='draft'&&['employee','owner','hr_admin'].includes(me.role))available=['submit'];
+   if(selected.status==='employee_submitted'&&['owner','hr_admin'].includes(me.role))available=['review','request_changes'];
+   if(selected.status==='hr_reviewed'&&['owner','operations'].includes(me.role))available=['approve','request_changes'];
+   if(available.length){const label=element('label','Task note',d);const note=element('input',undefined,label);note.id='taskNote';for(const action of available)button(action.replaceAll('_',' '),async()=>{const result=await api('/chat',{method:'POST',body:{message:action,conversation_id:currentChat.id,employee_id:id,version:selected.version,note:note.value}});bubble(result.reply);await refresh();await openEmployee(id);},d);}
+  }
+ }
+ const activity=element('details',undefined,d);element('summary','Activity',activity);for(const item of events)element('p',item.created+' · '+item.action,activity);
+ d.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function documentMessage(result){
+ if(result.extraction.is_mock)bubble('MOCK extraction · Review the manually annotated PAN fields. No OCR or identity verification was performed.');
+ else bubble((result.extraction.status==='partial'?'Partial extraction: ':'Document read: ')+result.extraction.document_type+'. Review the fields.');
 }
 $('loginForm').onsubmit=e=>{e.preventDefault();guard(async()=>{await api('/login',{method:'POST',body:Object.fromEntries(new FormData(e.target))});await refresh();bubble('Hi. Type add to add a person.');},e.submitter);};
 $('chatForm').onsubmit=e=>{e.preventDefault();const text=e.target.elements.message.value;e.target.reset();guard(()=>send(text),e.submitter);};
@@ -78,17 +105,17 @@ guard(async()=>{if(location.hash.startsWith('#invite=')){$('login').hidden=true;
 
 // Conversation transcripts stay in memory; document data remains on the server.
 const chats=[];let currentChat;let busy=false;
-function showExcel(){ $('chatlog').append($('excelPanel'));$('excelPanel').hidden=false; }
+function showExcel(){ selected=null;$('detail').hidden=true;$('chatlog').append($('excelPanel'));$('excelPanel').hidden=false; }
 function renderConversations(){ $('conversations').replaceChildren();for(const chat of chats){const b=button(chat.title,()=>switchChat(chat),$('conversations'));b.className=chat===currentChat?'active':'';} }
-function switchChat(chat){if(busy||chat===currentChat)return;document.body.classList.remove('sidebar-open');if(currentChat){currentChat.nodes=Array.from($('chatlog').childNodes).filter(n=>!['detail','excelPanel','usersPanel','passwordPanel'].includes(n.id));currentChat.employee=selected?.id;}for(const id of ['detail','excelPanel','usersPanel','passwordPanel']){$('conversation').append($(id));$(id).hidden=true;}$('chatlog').replaceChildren(...chat.nodes);currentChat=chat;$('chatTitle').textContent=chat.title;selected=null;$('greeting').hidden=chat.nodes.length>0;renderConversations();if(chat.employee)guard(()=>openEmployee(chat.employee));}
+function switchChat(chat){if(busy||chat===currentChat)return;document.body.classList.remove('sidebar-open');if(currentChat){currentChat.nodes=Array.from($('chatlog').childNodes).filter(n=>!['detail','excelPanel','usersPanel','passwordPanel'].includes(n.id));currentChat.employee=selected?.id;}for(const id of ['detail','excelPanel','usersPanel','passwordPanel']){$('conversation').append($(id));$(id).hidden=true;}$('chatlog').replaceChildren(...chat.nodes);currentChat=chat;$('chatTitle').textContent=chat.title;selected=null;$('greeting').hidden=chat.nodes.length>0;if($('startActions'))$('startActions').hidden=chat.nodes.length>0;renderConversations();if(chat.employee)guard(()=>openEmployee(chat.employee));}
 function newChat(){if(busy)return;const chat={id:Array.from(crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16).padStart(8,'0')).join(''),title:'New conversation',nodes:[],employee:null};chats.unshift(chat);switchChat(chat);}
 $('newChat').onclick=()=>guard(async()=>{await api('/me');newChat();});
 $('peopleToggle').onclick=()=>{$('employees').hidden=!$('employees').hidden;};$('employees').hidden=true;
 for(const id of ['manage','passwordButton','logout'])$('accountTools').append($(id));
 // Keep only three entry actions; all forms and reviews appear in the chat.
-const tools=$('add').parentElement;for(const a of tools.querySelectorAll('a'))a.remove();button('Master sheet',()=>showMaster(),tools);
+const tools=$('add').parentElement;tools.id='startActions';for(const a of tools.querySelectorAll('a'))a.remove();button('Master sheet',()=>showMaster(),tools);
 $('attach').onclick=()=>{$('attachments').accept='.xls,.xlsx,.pdf,image/*';$('attachments').click();};
-async function acceptFiles(files){if(busy)return;busy=true;$('attach').disabled=true;try{await api('/me');for(const file of files){$('attachmentsStatus').textContent='Reading '+file.name+'…';if(/\.xlsx?$/i.test(file.name)){showExcel();const input=$('excelForm').elements.file;const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;await previewExcel(new FormData($('excelForm')));if(files.length>1)bubble('Import this workbook first, then attach the next file.');break;}else{if(!selected){bubble('Choose a person before adding their document.');const b=bubble('People');for(const row of await api('/employees'))button(row.name,async()=>{await openEmployee(row.id);await acceptFiles([file]);},b);break;}const body=new FormData();body.append('file',file);body.append('document_type',$('documentType')?.value||'');bubble(file.name,'user');const result=await api('/employees/'+selected.id+'/documents',{method:'POST',body});bubble('Document read: '+result.extraction.document_type+'. Check the fields below.');await openEmployee(selected.id);}}}finally{busy=false;$('attach').disabled=false;$('attachmentsStatus').textContent='';$('attachments').value='';}}
+async function acceptFiles(files){if(busy)return;busy=true;$('attach').disabled=true;try{await api('/me');for(const file of files){$('attachmentsStatus').textContent='Reading '+file.name+'…';if(/\.xlsx?$/i.test(file.name)){showExcel();const input=$('excelForm').elements.file;const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;await previewExcel(new FormData($('excelForm')));if(files.length>1)bubble('Import this workbook first, then attach the next file.');break;}else{if(!selected){bubble('Choose a person before adding their document.');const b=bubble('People');for(const row of await api('/employees'))button(row.name,async()=>{await openEmployee(row.id);await acceptFiles([file]);},b);break;}const body=new FormData();body.append('file',file);body.append('document_type',$('documentType')?.value||'');bubble(file.name,'user');const result=await api('/employees/'+selected.id+'/documents',{method:'POST',body});documentMessage(result);await openEmployee(selected.id);}}}finally{busy=false;$('attach').disabled=false;$('attachmentsStatus').textContent='';$('attachments').value='';}}
 $('attachments').onchange=e=>guard(()=>acceptFiles(Array.from(e.target.files)));
 let dragDepth=0;document.addEventListener('dragenter',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files')){e.preventDefault();dragDepth++;$('dropHint').hidden=false;}});document.addEventListener('dragover',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files'))e.preventDefault();});document.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;$('dropHint').hidden=true;}});document.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('dropHint').hidden=true;guard(()=>acceptFiles(Array.from(e.dataTransfer?.files||[])));});
 const originalSend=send;send=async text=>{if(busy)return;busy=true;$('chatForm').querySelectorAll('button,input,textarea').forEach(e=>e.disabled=true);try{if(currentChat.title==='New conversation'){currentChat.title=text.slice(0,36);$('chatTitle').textContent=currentChat.title;renderConversations();}await originalSend(text);}finally{busy=false;$('chatForm').querySelectorAll('button,input,textarea').forEach(e=>e.disabled=false);$('chatForm').elements.message.focus();}};
@@ -101,6 +128,7 @@ messageBox.oninput=()=>{messageBox.style.height='auto';messageBox.style.height=M
 messageBox.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(messageBox.value.trim()&&!busy)$('chatForm').requestSubmit();}};
 
 async function showMaster(){
+ $('detail').hidden=true;$('excelPanel').hidden=true;selected=null;
  const data=await api('/employees/master');const card=bubble('Master employee sheet');
  button('Download Excel',()=>downloadMaster(),card);
  if(!data.rows.length){element('p','No employees yet.',card);return;}

@@ -3,9 +3,9 @@ from pathlib import Path
 from app.agents.chat import chat_agent,MODEL_DIR
 
 
-def test_local_ann_routes_paraphrase_to_onboarding(client):
+def test_minilm_routes_paraphrase_to_onboarding(client):
     response=client.post('/api/chat',json={'message':'please onboard a person'}).json()
-    assert response['chat_model']['model']=='local_ann_onnx_v1'
+    assert response['chat_model']['model']=='minilm_int8_intent_v1'
     assert response['chat_model']['intent']=='add_person'
     assert response['agent_trace']==['chat_agent','onboarding_agent']
     assert response['action']=='collect'
@@ -25,7 +25,7 @@ def test_unknown_intent_does_not_start_or_save(client):
     assert client.post('/api/chat',json={'message':'confirm'}).json()['reply'].startswith('There is no pending')
 
 
-def test_ann_predictions_and_negative_commands():
+def test_minilm_predictions_and_negative_commands():
     for text,intent in [('add','add_person'),('hello','greeting'),('import','import_excel'),
                         ('list','list_people'),('audit','audit'),('upload document','upload_document'),('export','export_excel')]:
         assert chat_agent(text)['intent']==intent

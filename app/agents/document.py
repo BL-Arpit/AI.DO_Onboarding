@@ -9,6 +9,12 @@ KIND_MAP = {'aadhaar':'AADHAAR_CARD','pan_card':'PAN_CARD',
             'passbook':'BANK_PASSBOOK','cancelled_cheque':'CHEQUE'}
 
 def document_agent(content, filename, document_type=None):
+    mode=os.getenv('EXTRACTION_MODE','tesseract')
+    if mode=='mock_pan':
+        if document_type and document_type!='PAN_CARD':raise HTTPException(422,'The demo fixture is a PAN card. Choose Auto or PAN.')
+        from .mock_document import mock_pan
+        return mock_pan(content)
+    if mode!='tesseract':raise HTTPException(503,'Set EXTRACTION_MODE to tesseract or mock_pan.')
     # Validate actual bytes; PDF classifier uses page 1, ADVO receives the complete PDF.
     if content.startswith(b'%PDF-'):
         import pypdfium2 as pdfium

@@ -1,0 +1,14 @@
+{
+  "sha256": "f8e6eb401518e8fae164969a922cbfa0dd8f45253cc19719291e18b89d3a77f7",
+  "purpose": "User-requested demo fixture. Manually transcribed, not OCR or identity verification.",
+  "fields": {
+    "pan_number": "IBXPS1725N",
+    "name": "ARPIT SAHU",
+    "father_name": "AJIT KUMAR SAHU",
+    "dob": "15/02/1996",
+    "date_of_issue": null,
+    "additional_fields": {
+      "demo_notice": "MOCK: manually annotated supplied PAN; not OCR or verification."
+    }
+  }
+}
