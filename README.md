@@ -15,7 +15,7 @@ Extraction now uses OCR evidence for automatic document typing, rather than forc
 
 Chat now runs the bundled **`model/chat/intent_ann.onnx`** using ONNX Runtime. The document model remains **`model/doc_classifier.onnx`**. Training and export are separate: install `requirements-dev.txt` and run `python training/train.py` to retrain and export, or `python training/export_onnx.py` to re-export existing weights. No training or model download is needed to start the app.
 
-**Verification limit:** automatic approval review blocked live startup in this environment due to reported Microsoft telemetry, even after calling the runtime's telemetry opt-out. No further live startup attempts were made. Direct Tesseract extraction, browser download with simulated API responses, and offline ONNX graph checks are recorded in `VALIDATION.md`. Native runtime live acceptance remains unverified here.
+**Verification limit:** automatic approval review blocked live startup in this environment due to reported Microsoft telemetry, even after calling the runtime's telemetry opt-out. No further live startup attempts were made. Direct Tesseract extraction, browser download with simulated API responses, and offline ONNX graph checks are recorded in `VALIDATION.md`. Run `python tests/run_offline.py` after installing `requirements-dev.txt` for the reference-interpreter checks. Native runtime live acceptance remains unverified here.
 
 ## One master employee sheet
 

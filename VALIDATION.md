@@ -1,3 +1,17 @@
+# Extraction, download and ONNX update — 3 November 2026
+
+- The exported `intent_ann.onnx` was checked with ONNX checker. Predictions matched the original ANN weights on all 345 included training/evaluation phrases; the maximum probability difference was 1.79e-7. This is format/inference parity, not evidence of improved intent accuracy.
+- Direct local Tesseract extraction of a synthetic PAN returned PAN_CARD/success and the correct synthetic PAN identifier. The failed real user document was not supplied, so its scan quality and extraction cannot be certified.
+- ADVO extraction checks: 31 passed; 3 unavailable image-fixture tests deselected.
+- Four document-agent regressions passed for auto typing, manual PAN retry, detailed service errors and rejecting empty extraction.
+- Browser verification of the download used the actual generated XLSX bytes and the application's CSP with simulated API responses. A valid workbook downloaded successfully; a simulated 401 displayed its message in chat. This was not a live server end-to-end run.
+- Latest offline application suites used ONNX's NumPy reference evaluator instead of native ONNX Runtime: week-1 34 passed; week-2 41 passed; week-3 46 passed. One native runtime-specific test was deliberately deselected in each offline suite. Run `python tests/run_offline.py` after installing requirements-dev.txt to reproduce this mode.
+- Before the final telemetry opt-out change, week-1's native-runtime application suite passed 35 tests, including ONNX parity and the export-control-character regression. The five frontend response-handling tests also passed. Python compilation and JavaScript syntax passed.
+
+**Live verification blocked:** automatic approval review rejected live app startup due to reported outbound Microsoft telemetry, even after adding the runtime's `disable_telemetry_events()` opt-out. No further live startup attempts were made. Latest checks used direct OCR, simulated browser APIs and the offline ONNX graph interpreter. Native runtime startup, supervisor lifecycle and an actual browser-to-app-to-OCR flow remain unverified here. Docker and live SMTP remain unverified.
+
+The runtime model is a custom domain ANN exported to ONNX, not an externally sourced pretrained chat LLM. `weights.npz` remains training input only. The included weights, vocabulary, normalization, labels and confidence guard are preserved. Explicit user confirmation, role permissions and workflow guards remain enforced by code.
+
 # Master employee sheet update
 
 All conversations and confirmed Excel imports use the same saved employee register. One master workbook contains one worksheet and one row per employee. Extracted fields appear in document-specific columns. Tests combine entries from two independent chats plus an Excel import and verify that all three appear once in the same worksheet. A second test verifies document columns, verification status and literal spreadsheet cells. Chromium checks passed for opening the master table and its Excel download link, alongside the existing chat and attachment interactions. Existing role visibility applies to both master table and export.
