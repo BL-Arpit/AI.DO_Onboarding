@@ -138,7 +138,7 @@ def master_table(employees):
     fields = [flatten(person.get("fields", {})) for person in people]
     extra = sorted({key for person in fields for key in person})
     columns = [
-        "employee_id",
+        "Hash Value",
         "name",
         "email",
         "phone",
