@@ -202,3 +202,17 @@ def test_chunked_json_body_is_bounded(client):
         "/api/chat", content=chunks(), headers={"Content-Type": "application/json"}
     )
     assert response.status_code == 413
+
+
+def test_pan_parser_keeps_parent_and_issue_date_out_of_cardholder_fields():
+    from app.extraction.documents.extractors.pan import extract_pan
+
+    result = extract_pan("Name\nFather's Name\nPARENT PERSON\nDate of issue: 01/01/2020")
+    assert result.name is None
+    assert result.father_name == "PARENT PERSON"
+    assert result.dob is None
+    assert result.date_of_issue == "01/01/2020"
+
+    result = extract_pan("Name: PARENT PERSON\nFather's Name: PARENT PERSON")
+    assert result.name is None
+    assert result.father_name == "PARENT PERSON"

@@ -90,15 +90,21 @@ class TesseractOCRProvider(OCRProvider):
                     int(width * left) : int(width * right),
                     2,
                 ]
-                crop = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-                crop = cv2.medianBlur(crop, 3)
-                crop = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+                if field == "name":
+                    view = crop
+                elif field in ("father_name", "dob"):
+                    scaled = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                    view = cv2.threshold(scaled, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+                else:
+                    scaled = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+                    view = cv2.threshold(cv2.medianBlur(scaled, 3), 0, 255,
+                                         cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
                 whitelist = " -c tessedit_char_whitelist=0123456789/-" if field == "dob" else ""
                 text = pytesseract.image_to_string(
-                    crop,
+                    view,
                     lang=self.language,
                     config=f"--oem {TESSERACT_OEM} --psm 7" + whitelist,
-                    timeout=4,
+                    timeout=TESSERACT_TIMEOUT_SECONDS,
                 ).strip()
                 values[field] = " ".join(text.split())
             if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", values["pan_number"]):
@@ -109,7 +115,7 @@ class TesseractOCRProvider(OCRProvider):
                     or len(values[field].split()) < 2
                 ):
                     return None
-            parsed = datetime.strptime(values["dob"], "%d/%m/%Y").date()
+            parsed = datetime.strptime(values["dob"].replace("-", "/"), "%d/%m/%Y").date()
             if parsed.year < 1900 or parsed >= date.today():
                 return None
             # Attach known region labels to OCR values for the common PAN parser.
@@ -485,7 +491,7 @@ class TesseractOCRProvider(OCRProvider):
                 variant,
                 lang=self.language,
                 config=f"--oem {TESSERACT_OEM} --psm 6",
-                timeout=min(TESSERACT_TIMEOUT_SECONDS, 1.5),
+                timeout=TESSERACT_TIMEOUT_SECONDS,
                 output_type=pytesseract.Output.DICT,
             )
             rows: dict[tuple[int, int, int], list[int]] = {}
@@ -565,7 +571,7 @@ class TesseractOCRProvider(OCRProvider):
                                         f"--oem {TESSERACT_OEM} --psm {psm} "
                                         "-c tessedit_char_whitelist=0123456789"
                                     ),
-                                    timeout=min(TESSERACT_TIMEOUT_SECONDS, 1.0),
+                                    timeout=TESSERACT_TIMEOUT_SECONDS,
                                 )
                                 readings.extend(re.findall(r"(?<!\d)\d{9,18}(?!\d)", text))
                         finally:

@@ -16,7 +16,7 @@ Employee targets bind only by full exact name, email or ID, case-insensitively. 
 2. Select the employee using exact identity or open their master-sheet row.
 3. Attach a government or bank document using + or drag-and-drop.
 4. Classification and OCR prefill the fields; review and correct them.
-5. Continue attaching documents. A minimum of two DISTINCT government document types and one bank document is required. Repeated PAN uploads count as one type. Mock or partial extractions do not satisfy the minimum.
+5. Continue attaching documents. A minimum of two DISTINCT government document types and one bank document is required. Repeated PAN uploads count as one type. Real uploads count even when OCR is incomplete. Mock uploads do not count. Review the document and leave unreadable fields blank.
 6. Confirm the latest extracted fields, then run the consistency audit.
 7. Resolve reported issues and rerun the audit. The derived checklist becomes complete only when the minimum, review and consistency checks pass. Checklist completion is not government identity verification.
 
