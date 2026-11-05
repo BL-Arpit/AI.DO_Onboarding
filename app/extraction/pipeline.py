@@ -41,7 +41,12 @@ class DocumentPipeline:
                 DocumentExtractionService,
             )
 
-            candidate = DocumentExtractionService()
+            if self.settings.document_mode == "google_vision":
+                from app.extraction.ocr.google_vision import GoogleVisionOCRProvider
+
+                candidate = DocumentExtractionService(ocr=GoogleVisionOCRProvider())
+            else:
+                candidate = DocumentExtractionService()
             if candidate.ocr is None:
                 raise RuntimeError(
                     "Tesseract is unavailable. Set TESSERACT_PATH and TESSERACT_LANG in the root .env."
@@ -111,7 +116,12 @@ class DocumentPipeline:
                             422,
                             "Upload a single-page PDF or split its pages into separate documents.",
                         )
-                    image = pdf[0].render(scale=1).to_pil()
+                    page = pdf[0]
+                    scale = 1
+                    if self.settings.document_mode == "google_vision":
+                        width, height = page.get_size()
+                        scale = min(2, 2200 / max(width, height))
+                    image = page.render(scale=scale).to_pil()
                     buffer = io.BytesIO()
                     image.save(buffer, format="PNG")
                     image.close()
@@ -119,6 +129,9 @@ class DocumentPipeline:
                 finally:
                     pdf.close()
                 suffix = ".pdf"
+                if self.settings.document_mode == "google_vision":
+                    suffix = ".png"
+                    content = image_bytes
             else:
                 with Image.open(io.BytesIO(content)) as image:
                     if image.format not in ("JPEG", "PNG", "WEBP"):
@@ -136,22 +149,40 @@ class DocumentPipeline:
             with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as file:
                 file.write(content)
                 temporary = Path(file.name)
-            from app.extraction.documents.models.documents import DocumentType
-
-            extraction = self.service().process(
-                temporary, DocumentType(document_type) if document_type else None
+            from app.extraction.documents.models.documents import (
+                AadhaarData, BankPassbookData, ChequeData, DocumentType, PanCardData,
             )
-            fields = extraction.get("extracted_data")
-            if not isinstance(fields, dict) or not any(
-                v for k, v in fields.items() if k != "additional_fields"
-            ):
-                raise HTTPException(
-                    422,
-                    "No usable fields were extracted. Try a clear upright image; you can specify PAN or Aadhaar in chat.",
+            from app.extraction.ocr.base import OCRProcessingError
+
+            models = {
+                "PAN_CARD": PanCardData, "AADHAAR_CARD": AadhaarData,
+                "BANK_PASSBOOK": BankPassbookData, "CHEQUE": ChequeData,
+            }
+            service = self.service()
+            try:
+                extraction = service.process(
+                    temporary, DocumentType(document_type) if document_type else None
                 )
+            except OCRProcessingError:
+                if not document_type:
+                    raise HTTPException(422, "Choose the document type to continue. OCR found no usable text.") from None
+                extraction = {
+                    "document_type": document_type,
+                    "status": "partial",
+                    "supported": True,
+                    "extraction_source": getattr(service.ocr, "source", "tesseract"),
+                    "validation": {"valid": False, "fields": {}},
+                    "message": "OCR found no usable text. Review the document and leave unreadable fields blank.",
+                }
+            kind = extraction["document_type"]
+            if kind not in models:
+                raise HTTPException(422, "Choose the document type to continue. Automatic classification could not identify it.")
+            fields = models[kind].model_validate(extraction.get("extracted_data") or {}).model_dump()
+            extraction["extracted_data"] = fields
+            ocr_source = "google_vision" if self.settings.document_mode == "google_vision" else "local_ocr"
             classification = {
                 "document_type": extraction["document_type"],
-                "source": "explicit_type" if document_type else "local_ocr",
+                "source": "explicit_type" if document_type else ocr_source,
                 "confidence": None,
                 "needs_review": extraction["status"] != "success",
             }

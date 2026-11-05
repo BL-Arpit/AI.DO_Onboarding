@@ -10,7 +10,7 @@ def workflow(person):
     usable = [
         d
         for d in latest.values()
-        if not d["extraction"].get("is_mock") and d["extraction"].get("status") == "success"
+        if not d["extraction"].get("is_mock") and d["extraction"].get("status") in {"success", "partial"}
     ]
     government = sorted({d["kind"] for d in usable} & GOVERNMENT)
     banks = sorted({d["kind"] for d in usable} & BANK)

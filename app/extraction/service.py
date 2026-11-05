@@ -34,7 +34,7 @@ class ExtractionConfigurationError(RuntimeError):
 
 
 class DocumentExtractionService:
-    """Local Tesseract extraction; no network calls or secondary server."""
+    """Classify and parse text returned by the selected OCR provider."""
 
     def __init__(self, ocr: OCRProvider | None = None) -> None:
         self.configuration_error = None
@@ -175,7 +175,7 @@ class DocumentExtractionService:
                 "document_type": document_type.value,
                 "supported": False,
                 "message": "Document type could not be identified from OCR evidence.",
-                "extraction_source": "tesseract",
+                "extraction_source": getattr(self.ocr, "source", "tesseract"),
             }
 
         if document_type == DocumentType.PAN_CARD:
@@ -282,7 +282,7 @@ class DocumentExtractionService:
             "supported": True,
             "extracted_data": values,
             "validation": {"valid": valid, "fields": fields},
-            "extraction_source": "tesseract",
+            "extraction_source": getattr(self.ocr, "source", "tesseract"),
         }
         if needs_fallback:
             local_result["message"] = "Partial OCR result. Review and correct the missing fields."

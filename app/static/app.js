@@ -290,7 +290,7 @@ function renderEmployee(person) {
  const confirmed = last('fields_confirmed') > last('document_extracted');
 
  if (!confirmed) {
-  node('p', 'Review the prefilled fields.', box);
+  node('p', 'Review the document fields. Unreadable fields can be left blank.', box);
   const form = node('form', undefined, box);
   const edited = structuredClone(person.fields);
   for (const kind of kinds) {
@@ -385,21 +385,38 @@ async function downloadMaster() {
  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
-async function upload(files) {
- if (!conv) await newChat();
- for (const file of files) {
-  bubble(file.name, 'user');
-  const form = new FormData();
-  form.append('file', file);
-  const result = await api('/chat/' + conv + '/attachments', {
-   method: 'POST',
-   body: form
-  });
-  await handle(result);
-  if (files.length > 1) break;
+async function uploadDocument(file, conversationId, documentType) {
+ const form = new FormData();
+ form.append('file', file);
+ const path = '/chat/' + conversationId + '/attachments' +
+  (documentType ? '?document_type=' + encodeURIComponent(documentType) : '');
+ let result;
+ try {
+  result = await api(path, {method: 'POST', body: form});
+ } catch (error) {
+  if (documentType || !error.message.startsWith('Choose the document type to continue.')) throw error;
+  const box = task('Choose the document type');
+  node('p', 'Select the type on the uploaded document. Unreadable fields can be left blank.', box);
+  for (const [label, type] of [
+   ['PAN', 'PAN_CARD'], ['Aadhaar', 'AADHAAR_CARD'],
+   ['Passbook', 'BANK_PASSBOOK'], ['Cheque', 'CHEQUE']
+  ]) {
+   button(label, () => uploadDocument(file, conversationId, type), box);
+  }
+  scroll();
+  return;
  }
- if (files.length > 1) bubble('Finish this document or import task, then attach the next file.');
+ await handle(result);
  await refreshConversations();
+}
+
+async function upload(files) {
+ if (!files.length) return;
+ if (!conv) await newChat();
+ const [file] = files;
+ bubble(file.name, 'user');
+ await uploadDocument(file, conv);
+ if (files.length > 1) bubble('Finish this document or import task, then attach the next file.');
 }
 
 async function signedIn() {

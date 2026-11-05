@@ -87,8 +87,8 @@ class Settings:
             raise ValueError(
                 "Set a random APP_SECRET of at least 32 characters; run scripts/init_env.py."
             )
-        if self.document_mode not in ("mock_pan", "tesseract"):
-            raise ValueError("DOCUMENT_MODE must be mock_pan or tesseract.")
+        if self.document_mode not in ("mock_pan", "tesseract", "google_vision"):
+            raise ValueError("DOCUMENT_MODE must be mock_pan, tesseract or google_vision.")
         if self.classifier not in ("ocr", "onnx"):
             raise ValueError("DOCUMENT_CLASSIFIER must be ocr or onnx.")
         if (
@@ -103,5 +103,5 @@ class Settings:
             raise ValueError("Invalid document resource limits.")
         if not self.trusted_hosts or "*" in self.trusted_hosts:
             raise ValueError("Set explicit TRUSTED_HOSTS; wildcard access is not supported.")
-        if self.production and (parsed.scheme != "https" or self.document_mode != "tesseract"):
-            raise ValueError("Production requires HTTPS APP_URL and DOCUMENT_MODE=tesseract.")
+        if self.production and (parsed.scheme != "https" or self.document_mode == "mock_pan"):
+            raise ValueError("Production requires HTTPS APP_URL and a real OCR provider.")

@@ -403,14 +403,15 @@ def confirm_action(action_id, conv, user):
         return store(db, user, conv, state, "confirm", consume(db, user, conv, state, action_id))
 
 
-def attach(content, filename, conv, user, pipeline):
+def attach(content, filename, conv, user, pipeline, document_type=None):
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         state, version = state_row(db, user, conv)
         person = (
             employees.get_employee(db, state["selected_id"]) if state.get("selected_id") else None
         )
-    result = pipeline.process(content, filename)
+    result = (pipeline.process(content, filename, document_type) if document_type
+              else pipeline.process(content, filename))
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         state, current = state_row(db, user, conv)
@@ -446,6 +447,9 @@ def attach(content, filename, conv, user, pipeline):
             state["preview_ids"] = previews + [pid]
             draft = state.setdefault("draft", {})
             name = result["prefill"].get("name") or result["prefill"].get("account_holder_name")
+            # Real PAN OCR is shown for review, while the operator supplies the employee name.
+            if result["classification"]["document_type"] == "PAN_CARD" and not result["extraction"].get("is_mock"):
+                name = None
             if name and not draft.get("name"):
                 draft["name"] = name
             response = draft_reply(db, user, conv, state)

@@ -123,6 +123,13 @@ def save_document(db, eid, version, result, user):
     person = get_employee(db, eid)
     check_version(person, version)
     kind = result["extraction"]["document_type"]
+    fingerprint = result.get("sha256")
+    classification = dict(result["classification"])
+    if fingerprint:
+        for document in person["documents"]:
+            if document["kind"] != kind and document["classification"].get("sha256") == fingerprint:
+                raise HTTPException(409, "This file is already attached as a different document type.")
+        classification["sha256"] = fingerprint
     fields = person["fields"]
     fields[kind] = result["extraction"]["extracted_data"]
     # Keep every upload as document history; fields hold the latest version per type.
@@ -132,7 +139,7 @@ def save_document(db, eid, version, result, user):
             secrets.token_hex(12),
             eid,
             kind,
-            json.dumps(result["classification"]),
+            json.dumps(classification),
             json.dumps(result["extraction"]),
         ),
     )
@@ -188,12 +195,10 @@ def verify_employee(db, eid, version, user):
             issues.append(
                 doc["kind"] + ": MOCK data; no OCR or identity verification was performed."
             )
-        if extraction.get("status") != "success":
-            issues.append(doc["kind"] + ": partial fields need review.")
         if doc["kind"] == "PAN_CARD":
             from app.extraction.documents.validators.pan import validate_pan_number
 
-            if not validate_pan_number(data.get("pan_number")):
+            if data.get("pan_number") and not validate_pan_number(data["pan_number"]):
                 issues.append("PAN_CARD: current PAN number has an invalid format.")
         name = data.get("name") or data.get("account_holder_name")
         if name and name.casefold().split() != person["name"].casefold().split():

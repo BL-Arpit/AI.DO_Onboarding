@@ -89,6 +89,7 @@ def attachment(
     request: Request,
     file: UploadFile = File(...),
     user=Depends(write_access),
+    document_type: str | None = None,
 ):
     if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", conv):
         raise HTTPException(422, "Invalid conversation ID.")
@@ -100,4 +101,6 @@ def attachment(
         from app.api.imports import create_preview
 
         return create_preview(content, file.filename, user)
-    return service.attach(content, file.filename or "", conv, user, request.app.state.pipeline)
+    return service.attach(
+        content, file.filename or "", conv, user, request.app.state.pipeline, document_type
+    )

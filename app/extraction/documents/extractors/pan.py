@@ -1,3 +1,4 @@
+from datetime import date, datetime
 import re
 
 from app.extraction.documents.models.documents import PanCardData
@@ -57,44 +58,14 @@ def _extract_person_name_after_label(
     if not match:
         return None
 
-    inline_value = lines[index][match.end() :].strip(" :-")
-    candidates = []
-
-    if inline_value:
-        candidates.append(inline_value)
-
-    # OCR may insert noise between the label and the actual name.
-    for next_index in range(index + 1, min(index + 5, len(lines))):
-        value = lines[next_index].strip()
-
-        if not value:
-            continue
-
-        if re.search(
-            rf"{FATHER_NAME_LABEL}|date\s+of\s+"
-            r"(?:birth|issue)|signature|permanent\s+account\s+number",
-            value,
-            re.IGNORECASE,
-        ):
-            break
-
-        cleaned = _clean_name(value)
-        if not cleaned:
-            continue
-
-        # Ignore isolated characters and very short OCR fragments.
-        if len(re.sub(r"[^A-Za-z]", "", cleaned)) < 3:
-            continue
-
-        candidates.append(cleaned)
-
-    # Prefer a plausible multi-token name over a short OCR fragment.
-    for candidate in candidates:
-        cleaned = _clean_name(candidate)
-        if cleaned and len(cleaned.split()) >= 2:
-            return cleaned
-
-    return candidates[0] if candidates else None
+    value = lines[index][match.end() :].strip(" :-|")
+    if not value and index + 1 < len(lines):
+        value = lines[index + 1].strip()
+    if re.search(r"\b(?:father|guardian|signature|date|department|account|name)\b", value, re.I):
+        return None
+    if not re.fullmatch(r"[A-Za-z][A-Za-z .'-]{2,79}", value):
+        return None
+    return _clean_name(value)
 
 
 def _extract_value_after_label(
@@ -148,7 +119,7 @@ def extract_pan(
         if (
             name is None
             and re.search(
-                r"\bname\b",
+                r"^name\b",
                 line,
                 re.IGNORECASE,
             )
@@ -161,7 +132,7 @@ def extract_pan(
             value = _extract_person_name_after_label(
                 lines,
                 index,
-                r"\bname\b",
+                r"^name\b",
             )
             name = value
 
@@ -186,14 +157,21 @@ def extract_pan(
             value = _extract_value_after_label(
                 lines,
                 index,
-                r"date\s+of\s+birth\s*:",
+                r"date\s+of\s+birth\b\s*[:|-]?",
             )
 
             if value:
                 match = DATE_PATTERN.search(value)
 
                 if match:
-                    dob = match.group(0)
+                    candidate = match.group(0).replace("-", "/")
+                    try:
+                        parsed = datetime.strptime(candidate, "%d/%m/%Y").date()
+                    except ValueError:
+                        pass
+                    else:
+                        if 1900 <= parsed.year and parsed < date.today():
+                            dob = candidate
 
         if date_of_issue is None and re.search(
             r"date\s+of\s+issue",
@@ -204,7 +182,7 @@ def extract_pan(
             value = _extract_value_after_label(
                 lines,
                 index,
-                r"date\s+of\s+issue\s*:",
+                r"date\s+of\s+issue\b\s*[:|-]?",
             )
 
             if value:
@@ -213,13 +191,8 @@ def extract_pan(
                 if match:
                     date_of_issue = match.group(0)
 
-    dates = DATE_PATTERN.findall(ocr_text)
-
-    if dob is None and dates:
-        dob = dates[0]
-
-    if date_of_issue is None and len(dates) >= 2:
-        date_of_issue = dates[1]
+    if name and father_name and name.casefold() == father_name.casefold():
+        name = None
 
     return PanCardData(
         pan_number=pan_number,

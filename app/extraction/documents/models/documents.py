@@ -96,7 +96,7 @@ class ExtractionResponse(BaseModel):
     extracted_data: dict[str, Any] | None = None
     validation: ValidationResult | None = None
     message: str | None = None
-    extraction_source: Literal["tesseract", "gemini"] | None = Field(
+    extraction_source: Literal["tesseract", "gemini", "google_vision"] | None = Field(
         default=None,
         description="OCR/extraction engine that produced the returned field values.",
     )
