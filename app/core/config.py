@@ -43,13 +43,16 @@ class Settings:
     @classmethod
     def load(cls):
         env = os.getenv("APP_ENV", "demo")
-        url = os.getenv("APP_URL", "http://127.0.0.1:8000").rstrip("/")
+        url = (
+            os.getenv("APP_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://127.0.0.1:8000"
+        ).strip().rstrip("/")
         parsed = urlsplit(url)
-        hosts = tuple(
-            x.strip()
-            for x in os.getenv("TRUSTED_HOSTS", parsed.hostname or "localhost").split(",")
-            if x.strip()
-        )
+        # The public origin must also pass the Host header check.
+        hosts = tuple(dict.fromkeys(
+            host.strip().lower()
+            for host in (parsed.hostname or "localhost", *os.getenv("TRUSTED_HOSTS", "").split(","))
+            if host.strip()
+        ))
         return cls(
             env,
             url,
