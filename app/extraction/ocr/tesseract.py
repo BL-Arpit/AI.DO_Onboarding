@@ -143,7 +143,8 @@ class TesseractOCRProvider(OCRProvider):
         results: list[OCRResult] = []
         variants = self.preprocessor.preprocess_for_document(path, document_type)
         if document_type == DocumentType.PAN_CARD:
-            variants.insert(1, variants[0].copy())
+            if path.suffix.lower() == ".pdf":
+                variants.insert(1, variants[0].copy())
             modes = [6, 11] + [6] * (len(variants) - 2)
         elif document_type == DocumentType.AADHAAR_CARD or document_type == DocumentType.CHEQUE:
             modes = [3] + [6] * (len(variants) - 1)

@@ -137,7 +137,7 @@ class DocumentExtractionService:
             # identifies a likely document. This keeps Swagger's optional
             # auto-detect path useful without paying for all OCR variants.
             try:
-                ocr_candidates = candidate_method(file_path, detected)
+                ocr_candidates.extend(candidate_method(file_path, detected))
                 ocr_result = max(
                     ocr_candidates,
                     key=lambda result: TesseractOCRProvider._score_text(result.text),

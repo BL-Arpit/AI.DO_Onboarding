@@ -80,6 +80,13 @@ class OCRPreprocessor:
                 variants.append(crop)
 
             if document_type == DocumentType.PAN_CARD:
+                # The blue channel can preserve dark text lost in grayscale.
+                scale = min(2, 2200 / max(width, height))
+                with original.getchannel("B") as blue:
+                    variants.append(blue.resize(
+                        (max(1, round(width * scale)), max(1, round(height * scale))),
+                        Image.Resampling.BICUBIC,
+                    ))
                 # Small PAN labels can disappear when the card fills only a
                 # portion of a camera photo. Retain the full-frame view and
                 # add a larger, thresholded view to recover those fields.
