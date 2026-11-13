@@ -22,3 +22,34 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #composer input { flex: 1; }
 #notice { color: #ffccab; overflow-wrap: anywhere; }
 a { color: #bdadff; }
+
+#add-employee {
+  width: min(28rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: clamp(1rem, 5vw, 1.75rem);
+  border: 1px solid #383946;
+  border-radius: 1rem;
+  background: #1b1c24;
+  color: inherit;
+  box-shadow: 0 20px 64px #0007;
+}
+#add-employee::backdrop { background: #0a0b10bd; }
+#add-employee h2 { margin: 0; font-size: 1.4rem; }
+#add-employee-description { margin: .4rem 0 1.4rem; color: #c4c3d0; line-height: 1.5; }
+#add-employee-form { gap: 1rem; margin: 0; }
+#add-employee-form label { font-size: .9rem; font-weight: 600; }
+#add-employee-form input {
+  min-height: 2.75rem;
+  background: #14151b;
+  border-color: #626378;
+  border-radius: .65rem;
+  font-weight: 400;
+}
+.dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .65rem; margin-top: .35rem; }
+.dialog-actions button { min-height: 2.75rem; border-radius: .65rem; }
+.dialog-actions .primary { color: #171129; background: #c8baff; border-color: transparent; font-weight: 650; }
+.dialog-actions .primary:hover { background: #dccfff; }
+.dialog-actions button:disabled { opacity: .65; cursor: wait; }
+#add-employee-error { margin: 0; padding: .65rem .8rem; border-radius: .5rem; background: #402632; color: #ffd5df; }
+body:has(#add-employee[open]) #chat,
+body:has(#add-employee[open]) #composer { visibility: hidden; }

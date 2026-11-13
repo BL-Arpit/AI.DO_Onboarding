@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI.DO Onboarding</title>
-<link rel="stylesheet" href="/assets/week2.css">
-<script defer src="/assets/week2.js"></script>
+<link rel="stylesheet" href="/assets/week2.css?v=2">
+<script defer src="/assets/week2.js?v=2"></script>
 </head>
 <body>
 <header><strong>AI.DO</strong><span id="identity"></span><button id="logout" type="button" hidden>Sign out</button></header>
@@ -19,12 +19,26 @@
 </form>
 </section>
 <section id="workspace" hidden>
-<div id="chat" aria-live="polite"></div>
+<div id="chat" aria-live="polite" hidden></div>
 <div id="panel"></div>
 <nav id="shortcuts" aria-label="Commands"></nav>
 <form id="composer"><input name="command" aria-label="Chat command" placeholder="Type a command" autocomplete="off"><button>Send</button></form>
 </section>
 <p id="notice" role="status"></p>
 </main>
+<dialog id="add-employee" aria-labelledby="add-employee-title" aria-describedby="add-employee-description">
+  <h2 id="add-employee-title">Add employee</h2>
+  <p id="add-employee-description">Enter their details to send an onboarding invitation.</p>
+  <form id="add-employee-form">
+    <label>Full name<input name="name" autocomplete="name" maxlength="120" required autofocus></label>
+    <label>Work email<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+    <label>Phone number<input name="phone" type="tel" autocomplete="tel" minlength="8" maxlength="30" required></label>
+    <p id="add-employee-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button id="add-employee-cancel" type="button">Cancel</button>
+      <button type="submit" class="primary">Create and invite</button>
+    </div>
+  </form>
+</dialog>
 </body>
 </html>

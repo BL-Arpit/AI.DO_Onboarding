@@ -2,6 +2,10 @@
 
 const byId = id => document.getElementById(id);
 const panel = byId('panel');
+const employeeDialog = byId('add-employee');
+const employeeForm = byId('add-employee-form');
+const employeeError = byId('add-employee-error');
+let inviting = false;
 let user;
 let csrf = '';
 let busy = false;
@@ -48,6 +52,7 @@ function button(parent, label, action) {
 
 function say(text, mine = false) {
   const chat = byId('chat');
+  chat.hidden = false;
   append(chat, 'p', text).classList.toggle('user', mine);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -195,22 +200,23 @@ async function employeeList(submitted) {
 async function command(value) {
   const text = value.trim();
   if (!text) return;
-  say(text, true);
   const normalized = text.toLowerCase().replace(/[?!.]+$/, '');
   if (user.must_change) {
     say('Set a new password to continue.');
     return;
   }
+  if (['owner', 'hr_admin'].includes(user.role) && /^(?:add|add (?:an? )?(?:employee|person))$/.test(normalized)) {
+    employeeForm.reset();
+    employeeError.hidden = true;
+    employeeDialog.showModal();
+    return;
+  }
+  say(text, true);
   if (user.role === 'employee') {
     if (/profile|bio|upload|submit|document/.test(normalized)) return profile();
     return say('Open Profile to edit your details, upload documents or submit for review.');
   }
-  if (normalized === 'add' || normalized === 'add employee') {
-    form(box('Add employee'), contact, 'Create and invite', async data => {
-      report(await api('/week2/employees', 'POST', Object.fromEntries(data)));
-      await employeeList(false);
-    });
-  } else if (normalized === 'add list') {
+  if (normalized === 'add list') {
     form(box('Upload employee list'), [{ name: 'file', label: 'Excel with Name, Email, Phone', type: 'file', accept: '.xls,.xlsx' }], 'Preview', async data => {
       const preview = await api('/week2/import/preview', 'POST', data);
       const section = box('Review invitations');
@@ -263,11 +269,43 @@ async function start() {
     button(shortcuts, 'Profile', profile);
     await profile();
   } else {
-    for (const name of ['add', 'add list', 'submissions', 'verify']) button(shortcuts, name, () => command(name));
+    for (const name of ['Add employee', 'Add list', 'Submissions', 'Verify']) button(shortcuts, name, () => command(name));
     if (user.role === 'owner') button(shortcuts, 'appoint hr', () => command('appoint hr'));
-    say('How can I help with onboarding?');
   }
 }
+
+byId('add-employee-cancel').onclick = () => employeeDialog.close();
+employeeDialog.oncancel = event => {
+  if (inviting) event.preventDefault();
+};
+employeeDialog.onclose = () => {
+  byId('chat').hidden = false;
+  byId('composer').elements.command.focus();
+};
+employeeForm.onsubmit = async event => {
+  event.preventDefault();
+  if (inviting) return;
+  const data = Object.fromEntries(new FormData(employeeForm));
+  const controls = employeeForm.querySelectorAll('input, button');
+  const submit = employeeForm.querySelector('button[type=submit]');
+  inviting = true;
+  employeeError.hidden = true;
+  controls.forEach(control => { control.disabled = true; });
+  submit.textContent = 'Sending…';
+  try {
+    const result = await api('/week2/employees', 'POST', data);
+    employeeDialog.close();
+    panel.replaceChildren();
+    report(result);
+  } catch (error) {
+    employeeError.textContent = error.message;
+    employeeError.hidden = false;
+  } finally {
+    inviting = false;
+    controls.forEach(control => { control.disabled = false; });
+    submit.textContent = 'Create and invite';
+  }
+};
 
 byId('login-form').onsubmit = event => {
   event.preventDefault();
