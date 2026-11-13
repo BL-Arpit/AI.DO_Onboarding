@@ -1,0 +1,24 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #121318; color: #f4f3f7; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+header { padding: 1rem; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #373849; }
+header button { margin-left: auto; }
+main { max-width: 58rem; margin: auto; padding: 1rem; }
+#login { max-width: 27rem; margin: 8vh auto; }
+#panel > section, #login { padding: 1.25rem; background: #1c1e28; border-radius: .85rem; }
+#chat { max-height: 32vh; overflow: auto; }
+#chat p { padding: .7rem 1rem; background: #222434; border-radius: .75rem; overflow-wrap: anywhere; }
+#chat .user { background: #353253; margin-left: 12%; }
+form, label { display: grid; gap: .5rem; }
+form, nav, .row { margin: .8rem 0; }
+nav, .row { display: flex; gap: .55rem; flex-wrap: wrap; align-items: center; }
+.row { border-bottom: 1px solid #373849; padding: .55rem 0; }
+input, select, button { font: inherit; padding: .55rem .75rem; border: 1px solid #62647a; border-radius: .45rem; background: #242635; color: inherit; min-width: 0; }
+button { cursor: pointer; }
+button:hover { background: #393b55; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #afa2ff; }
+#composer { display: flex; }
+#composer input { flex: 1; }
+#notice { color: #ffccab; overflow-wrap: anywhere; }
+a { color: #bdadff; }

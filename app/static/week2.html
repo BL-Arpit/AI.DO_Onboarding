@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI.DO Onboarding</title>
+<link rel="stylesheet" href="/assets/week2.css">
+<script defer src="/assets/week2.js"></script>
+</head>
+<body>
+<header><strong>AI.DO</strong><span id="identity"></span><button id="logout" type="button" hidden>Sign out</button></header>
+<main>
+<section id="login">
+<h1>Sign in</h1>
+<form id="login-form">
+<label>Email<input name="email" type="email" autocomplete="username" required></label>
+<label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+<button>Sign in</button>
+</form>
+</section>
+<section id="workspace" hidden>
+<div id="chat" aria-live="polite"></div>
+<div id="panel"></div>
+<nav id="shortcuts" aria-label="Commands"></nav>
+<form id="composer"><input name="command" aria-label="Chat command" placeholder="Type a command" autocomplete="off"><button>Send</button></form>
+</section>
+<p id="notice" role="status"></p>
+</main>
+</body>
+</html>

@@ -58,10 +58,12 @@ def password(body: PasswordInput, response: Response, user=Depends(write_access)
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         row = db.execute("SELECT password FROM users WHERE id=?", (user["id"],)).fetchone()
+        if body.old_password == body.new_password:
+            raise HTTPException(422, "Choose a different password.")
         if not password_matches(body.old_password, row["password"]):
             raise HTTPException(401, "Current password is incorrect.")
         db.execute(
-            "UPDATE users SET password=? WHERE id=?",
+            "UPDATE users SET password=?,must_change=0,temp_expires=NULL WHERE id=?",
             (hasher.hash(body.new_password), user["id"]),
         )
         db.execute("DELETE FROM auth_sessions WHERE user_id=?", (user["id"],))
