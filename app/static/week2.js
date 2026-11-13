@@ -33,12 +33,13 @@ async function api(path, method = 'GET', data) {
 async function run(action) {
   if (busy) return;
   busy = true;
-  byId('notice').textContent = 'Working…';
+  const notice = byId(user ? 'notice' : 'login-notice');
+  notice.textContent = 'Working…';
   try {
     await action();
-    byId('notice').textContent = '';
+    notice.textContent = '';
   } catch (error) {
-    byId('notice').textContent = error.message;
+    notice.textContent = error.message;
   } finally {
     busy = false;
   }
@@ -48,9 +49,11 @@ function button(parent, label, action) {
   const control = append(parent, 'button', label);
   control.type = 'button';
   control.onclick = () => run(action);
+  return control;
 }
 
 function say(text, mine = false) {
+  byId('welcome').hidden = true;
   const chat = byId('chat');
   chat.hidden = false;
   append(chat, 'p', text).classList.toggle('user', mine);
@@ -58,6 +61,7 @@ function say(text, mine = false) {
 }
 
 function box(title) {
+  byId('welcome').hidden = true;
   panel.replaceChildren();
   const section = append(panel, 'section');
   append(section, 'h2', title);
@@ -76,7 +80,7 @@ function form(parent, fields, label, action) {
     if (field.disabled) input.disabled = true;
     if (field.accept) input.accept = field.accept;
   }
-  append(element, 'button', label);
+  append(element, 'button', label).className = 'primary';
   element.onsubmit = event => {
     event.preventDefault();
     const data = new FormData(element);
@@ -87,7 +91,7 @@ function form(parent, fields, label, action) {
 
 function report(result) {
   for (const item of result.invitations) {
-    say(item.email + (item.email_accepted ? ' · invitation accepted by mail service' : ' · email failed. Retry the invitation.'));
+    say(item.email + (item.email_accepted ? ' · invitation accepted by mail service' : ' · invitation email failed. For employees, open Submissions to resend.'));
   }
 }
 
@@ -216,7 +220,7 @@ async function command(value) {
     if (/profile|bio|upload|submit|document/.test(normalized)) return profile();
     return say('Open Profile to edit your details, upload documents or submit for review.');
   }
-  if (normalized === 'add list') {
+  if (['add list', 'import employee list'].includes(normalized)) {
     form(box('Upload employee list'), [{ name: 'file', label: 'Excel with Name, Email, Phone', type: 'file', accept: '.xls,.xlsx' }], 'Preview', async data => {
       const preview = await api('/week2/import/preview', 'POST', data);
       const section = box('Review invitations');
@@ -231,7 +235,7 @@ async function command(value) {
         await employeeList(false);
       });
     });
-  } else if (/\bverify\b|ready for review/.test(normalized)) {
+  } else if (/\bverify\b|ready for review|review documents/.test(normalized)) {
     await employeeList(true);
   } else if (/\bsubmissions?\b|^list$/.test(normalized)) {
     await employeeList(false);
@@ -244,14 +248,56 @@ async function command(value) {
   }
 }
 
+const sidebar = byId('sidebar');
+const menu = byId('menu');
+
+function toggleMenu(open) {
+  sidebar.classList.toggle('is-open', open);
+  menu.setAttribute('aria-expanded', String(open));
+}
+
+function workspaceLink(label, icon, action, selected = false) {
+  const nav = byId('workspace-nav');
+  const link = button(nav, label, async () => {
+    toggleMenu(false);
+    await action();
+    nav.querySelector('[aria-current]')?.removeAttribute('aria-current');
+    link.setAttribute('aria-current', 'page');
+  });
+  const mark = document.createElement('span');
+  mark.setAttribute('aria-hidden', 'true');
+  mark.textContent = icon;
+  link.prepend(mark);
+  if (selected) link.setAttribute('aria-current', 'page');
+}
+
+function showWorkspace() {
+  panel.replaceChildren();
+  byId('chat').hidden = true;
+  byId('welcome').hidden = false;
+  byId('composer').elements.command.focus();
+}
+
+menu.onclick = () => toggleMenu(!sidebar.classList.contains('is-open'));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && sidebar.classList.contains('is-open')) {
+    toggleMenu(false);
+    menu.focus();
+  }
+});
+
 async function start() {
   const session = await api('/auth/session');
   user = session.user;
   csrf = session.csrf_token;
   byId('login').hidden = true;
   byId('workspace').hidden = false;
-  byId('logout').hidden = false;
-  byId('identity').textContent = user.name + ' · ' + user.role.replace('_', ' ');
+  sidebar.hidden = false;
+  menu.hidden = false;
+  byId('identity').textContent = user.name;
+  byId('avatar').textContent = user.name.trim().slice(0, 1).toUpperCase();
+  const roleNames = { owner: 'Owner', hr_admin: 'HR Admin', employee: 'Employee' };
+  byId('account-role').textContent = roleNames[user.role] || user.role;
   const shortcuts = byId('shortcuts');
   shortcuts.replaceChildren();
   if (user.must_change) {
@@ -265,28 +311,54 @@ async function start() {
     });
     return;
   }
+  const attach = byId('attach');
   if (user.role === 'employee') {
-    button(shortcuts, 'Profile', profile);
+    workspaceLink('My onboarding', '◇', profile, true);
+    attach.onclick = () => run(async () => {
+      const file = panel.querySelector('input[type=file]');
+      if (file) file.click();
+      else await profile();
+    });
     await profile();
   } else {
-    for (const name of ['Add employee', 'Add list', 'Submissions', 'Verify']) button(shortcuts, name, () => command(name));
-    if (user.role === 'owner') button(shortcuts, 'appoint hr', () => command('appoint hr'));
+    byId('pinned-tools').hidden = false;
+    const name = user.name.trim().split(/\s+/)[0];
+    byId('greeting').textContent = name ? 'Welcome, ' + name + '.' : 'Welcome to AI.DO.';
+    showWorkspace();
+    workspaceLink(user.role === 'owner' ? 'Owner Workspace' : 'HR Workspace', '▣', showWorkspace, true);
+    workspaceLink('Submissions & Queue', '☷', () => employeeList(false));
+    workspaceLink('Document Review', '◇', () => employeeList(true));
+    for (const label of ['Add employee', 'View submissions', 'Review documents']) {
+      button(shortcuts, label, () => command(label));
+    }
+    const suggestions = byId('suggested-commands');
+    button(suggestions, 'Import employee list', () => command('add list'));
+    button(suggestions, 'See who is ready for review', () => command('verify'));
+    if (user.role === 'owner') button(suggestions, 'Appoint HR admin', () => command('appoint hr'));
+    attach.onclick = () => run(async () => {
+      await command('add list');
+      panel.querySelector('input[type=file]')?.focus();
+    });
   }
 }
 
 byId('add-employee-cancel').onclick = () => employeeDialog.close();
+byId('add-employee-close').onclick = () => employeeDialog.close();
+employeeForm.onreset = () => {
+  employeeError.hidden = true;
+  employeeForm.elements.name.focus();
+};
 employeeDialog.oncancel = event => {
   if (inviting) event.preventDefault();
 };
 employeeDialog.onclose = () => {
-  byId('chat').hidden = false;
   byId('composer').elements.command.focus();
 };
 employeeForm.onsubmit = async event => {
   event.preventDefault();
   if (inviting) return;
   const data = Object.fromEntries(new FormData(employeeForm));
-  const controls = employeeForm.querySelectorAll('input, button');
+  const controls = employeeDialog.querySelectorAll('input, button');
   const submit = employeeForm.querySelector('button[type=submit]');
   inviting = true;
   employeeError.hidden = true;

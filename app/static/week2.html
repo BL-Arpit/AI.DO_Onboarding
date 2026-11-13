@@ -4,38 +4,78 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI.DO Onboarding</title>
-<link rel="stylesheet" href="/assets/week2.css?v=2">
-<script defer src="/assets/week2.js?v=2"></script>
+<link rel="stylesheet" href="/assets/week2.css?v=4">
+<script defer src="/assets/week2.js?v=4"></script>
 </head>
 <body>
-<header><strong>AI.DO</strong><span id="identity"></span><button id="logout" type="button" hidden>Sign out</button></header>
+<aside id="sidebar" aria-label="Workspace navigation" hidden>
+  <div class="sidebar-brand"><span class="brand-mark" aria-hidden="true">◇</span><strong>AI.DO</strong></div>
+  <span class="nav-label">Workspace</span>
+  <nav id="workspace-nav" aria-label="Workspace"></nav>
+  <div id="pinned-tools" hidden>
+    <span class="nav-label">Pinned tools</span>
+    <a class="nav-link" href="/api/week2/export"><span aria-hidden="true">▤</span>Export master Excel</a>
+  </div>
+  <footer class="sidebar-account">
+    <span id="avatar" aria-hidden="true"></span>
+    <div><strong id="identity"></strong><small id="account-role"></small></div>
+    <button id="logout" class="quiet" type="button">Sign out</button>
+  </footer>
+</aside>
+<header class="topbar">
+  <button id="menu" class="quiet" type="button" aria-label="Workspace menu" aria-expanded="false" aria-controls="sidebar" hidden>☰</button>
+  <strong class="wordmark">AI.DO Onboarding Assistant</strong>
+</header>
 <main>
-<section id="login">
-<h1>Sign in</h1>
-<form id="login-form">
-<label>Email<input name="email" type="email" autocomplete="username" required></label>
-<label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-<button>Sign in</button>
-</form>
-</section>
-<section id="workspace" hidden>
-<div id="chat" aria-live="polite" hidden></div>
-<div id="panel"></div>
-<nav id="shortcuts" aria-label="Commands"></nav>
-<form id="composer"><input name="command" aria-label="Chat command" placeholder="Type a command" autocomplete="off"><button>Send</button></form>
-</section>
-<p id="notice" role="status"></p>
+  <section id="login" aria-labelledby="login-title">
+    <h1 id="login-title">Welcome to AI.DO</h1>
+    <p class="muted">Sign in to your onboarding workspace.</p>
+    <form id="login-form">
+      <label>Email<input name="email" type="email" autocomplete="username" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary">Sign in</button>
+    </form>
+  </section>
+  <section id="workspace" hidden>
+    <div class="conversation">
+      <section id="welcome" hidden>
+        <span class="welcome-mark" aria-hidden="true">◇</span>
+        <h1 id="greeting"></h1>
+        <p class="muted">How can AI.DO help with onboarding today?</p>
+        <nav id="shortcuts" aria-label="Onboarding actions"></nav>
+        <div class="suggestions">
+          <span class="nav-label">Suggested inquiries</span>
+          <div id="suggested-commands"></div>
+        </div>
+      </section>
+      <div id="chat" role="log" aria-label="Conversation" hidden></div>
+      <div id="panel"></div>
+    </div>
+    <div class="compose-area">
+      <p id="notice" role="status"></p>
+      <form id="composer">
+        <button id="attach" class="quiet attach" type="button" aria-label="Attach an onboarding file">+</button>
+        <input name="command" aria-label="Chat command" placeholder="Message AI.DO" autocomplete="off" required>
+        <button class="primary send" aria-label="Send message"><span aria-hidden="true">↑</span></button>
+      </form>
+    </div>
+  </section>
+  <p id="login-notice" role="status"></p>
 </main>
 <dialog id="add-employee" aria-labelledby="add-employee-title" aria-describedby="add-employee-description">
-  <h2 id="add-employee-title">Add employee</h2>
-  <p id="add-employee-description">Enter their details to send an onboarding invitation.</p>
+  <div class="dialog-header">
+    <button id="add-employee-close" class="quiet dialog-close" type="button" aria-label="Close add employee">×</button>
+    <h2 id="add-employee-title">Add New Employee</h2>
+    <p id="add-employee-description" class="muted">We’ll send an onboarding invitation to their email.</p>
+  </div>
   <form id="add-employee-form">
-    <label>Full name<input name="name" autocomplete="name" maxlength="120" required autofocus></label>
-    <label>Work email<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
-    <label>Phone number<input name="phone" type="tel" autocomplete="tel" minlength="8" maxlength="30" required></label>
+    <label><span>Full name <b aria-hidden="true">*</b></span><input name="name" autocomplete="name" placeholder="e.g. Alex Morgan" maxlength="120" required autofocus></label>
+    <label><span>Work email <b aria-hidden="true">*</b></span><input name="email" type="email" autocomplete="email" placeholder="alex@company.com" maxlength="254" required></label>
+    <label><span>Phone number <b aria-hidden="true">*</b></span><input name="phone" type="tel" autocomplete="tel" placeholder="+91 98765 43210" minlength="8" maxlength="30" required></label>
     <p id="add-employee-error" role="alert" hidden></p>
     <div class="dialog-actions">
-      <button id="add-employee-cancel" type="button">Cancel</button>
+      <button id="add-employee-reset" type="reset" class="quiet">Reset form</button>
+      <button id="add-employee-cancel" type="button" class="quiet">Cancel</button>
       <button type="submit" class="primary">Create and invite</button>
     </div>
   </form>
