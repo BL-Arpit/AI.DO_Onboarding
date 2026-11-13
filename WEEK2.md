@@ -12,17 +12,26 @@ Use the existing Dockerfile. Keep the app URL, secret, trusted hosts and bootstr
 | TRUSTED_HOSTS | The Render hostname, plus 127.0.0.1 for the container health check |
 | DOCUMENT_MODE | google_vision |
 | GOOGLE_VISION_API_KEY | Your Cloud Vision key, stored in Render |
-| RESEND_API_KEY | A Resend sending key, stored in Render |
-| INVITE_FROM | A sender address on your verified Resend domain |
+| GMAIL_CLIENT_ID | Google OAuth web application client ID |
+| GMAIL_CLIENT_SECRET | Google OAuth client secret |
+| GMAIL_REFRESH_TOKEN | Offline OAuth refresh token for the sending mailbox |
+| INVITE_FROM | Authorized Google Workspace mailbox, e.g. arpit.sahu@bridgelabz.com |
 | DATABASE_PATH | SQLite file inside a persistent, writable mount, for example /project/data/week2.sqlite |
 
 Keep the database mount writable by the Docker app user (UID 10001). Render Free cannot attach a persistent disk. For real submissions with this SQLite build, use a disk-backed service and take database backups. An ephemeral deployment can lose invitations, accounts, uploads and submissions when it restarts. This release stores original uploads and extracted fields in SQLite. Google Vision receives the uploaded image or rendered PDF page during extraction.
 
-Verify your sender domain in Resend before inviting arbitrary recipients. Resend's HTTP API is used instead of SMTP because the free Render service blocks standard SMTP ports. See https://resend.com/docs/dashboard/domains/introduction and https://render.com/docs/free.
+## Authorize Gmail invitations
+
+1. In a [Google Cloud project](https://console.cloud.google.com/), enable the Gmail API. In Google Auth Platform, configure the app audience. Use Internal if the project belongs to the BridgeLabz Workspace and Internal is available. Workspace policy may require the admin to approve the OAuth app. External apps left in Testing can receive refresh tokens that expire after seven days.
+2. Create an OAuth client of type **Web application**. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI for the setup below.
+3. Open [Google OAuth Playground](https://developers.google.com/oauthplayground). Under the gear icon, select **Use your own OAuth credentials**, enter the client ID and secret, and use **Offline** access. Authorize the scope `https://www.googleapis.com/auth/gmail.send` while signed into the mailbox in `INVITE_FROM`. Exchange the authorization code for tokens and copy the **refresh token**.
+4. Save the four values from the table in Render **Environment**. Deploy this build and invite an employee using an inbox you control. Keep the client secret and refresh token in Render. Google Cloud Vision continues to use its existing API key.
+
+The app obtains an access token before it creates invitation records. If Gmail rejects a send after the account was saved, use **Resend invitation** to issue a fresh temporary password.
 
 ## Default HR account for testing
 
-Set `TEST_HR_EMAIL` and `TEST_HR_PASSWORD` in Render Environment or in your local untracked `.env` file. Use the credentials supplied separately. Restart or redeploy, then sign in directly as Test HR. This setup does not use Resend. Employee invitations still require the Resend settings above.
+Set `TEST_HR_EMAIL` and `TEST_HR_PASSWORD` in Render Environment or in your local untracked `.env` file. Use the credentials supplied separately. Restart or redeploy, then sign in directly as Test HR. Test HR can sign in before Gmail is configured. Employee invitations require the Gmail settings above.
 
 The app stores a password hash in SQLite and creates this account only if the email is new. Restarting preserves any later password change. To preserve the account on Render, attach a persistent disk at `/project/data` and use `DATABASE_PATH=/project/data/week2.sqlite`. If you already have a persistent database, keep its existing path.
 

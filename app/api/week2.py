@@ -1,9 +1,12 @@
 """Role-scoped onboarding commands and document submission."""
 
+import base64
+import logging
 import os
 import secrets
 import time
 import unicodedata
+from email.message import EmailMessage
 
 import httpx
 
@@ -20,6 +23,7 @@ from app.services import employees
 from app.services.excel import export_excel, parse_excel
 
 router = APIRouter(prefix="/api/week2")
+logger = logging.getLogger(__name__)
 
 
 class Contact(BaseModel):
@@ -61,29 +65,60 @@ def own(db, user):
 
 
 def invite_config():
-    key = os.getenv("RESEND_API_KEY", "").strip()
     sender = os.getenv("INVITE_FROM", "").strip()
-    if not key or not sender:
-        raise HTTPException(503, "Configure RESEND_API_KEY and INVITE_FROM on the server.")
-    return key, sender
+    credentials = {
+        field: os.getenv("GMAIL_" + field.upper(), "").strip()
+        for field in ("client_id", "client_secret", "refresh_token")
+    }
+    if not sender or not all(credentials.values()):
+        raise HTTPException(
+            503, "Configure GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN and INVITE_FROM."
+        )
+    try:
+        sender = EmployeeInput.email_clean(sender)
+    except ValueError:
+        raise HTTPException(503, "Set INVITE_FROM to the authorized Gmail address.") from None
+    try:
+        response = httpx.post(
+            "https://oauth2.googleapis.com/token",
+            data={**credentials, "grant_type": "refresh_token"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        token = payload.get("access_token") if isinstance(payload, dict) else None
+        if isinstance(token, str) and token:
+            return token, sender
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Gmail token endpoint returned HTTP %s", exc.response.status_code)
+    except (httpx.RequestError, ValueError):
+        logger.warning("Gmail token endpoint unavailable or returned invalid data")
+    raise HTTPException(503, "Gmail authorization failed. Check the server's OAuth credentials.")
 
 
 def send_invite(config, address, password):
-    key, sender = config
-    message = (
+    token, sender = config
+    message = EmailMessage()
+    message["From"] = sender
+    message["To"] = address
+    message["Subject"] = "Your AI.DO onboarding login"
+    message.set_content(
         f"Sign in at {Settings.load().app_url}\nEmail: {address}\n"
         f"Temporary password: {password}\n"
         "Change your password at first sign-in. This password expires in 24 hours.\n"
     )
     try:
         response = httpx.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {key}"},
-            json={"from": sender, "to": [address], "subject": "Your AI.DO onboarding login", "text": message},
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"raw": base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")},
             timeout=8,
         )
+        if not response.is_success:
+            logger.warning("Gmail send endpoint returned HTTP %s", response.status_code)
         return response.is_success
-    except httpx.HTTPError:
+    except httpx.RequestError:
+        logger.warning("Gmail send endpoint unavailable")
         return False
 
 

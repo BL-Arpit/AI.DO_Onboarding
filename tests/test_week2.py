@@ -5,8 +5,7 @@ from app.api import week2
 
 def test_invitation_submission_review_and_offboarding(client, monkeypatch):
     sent = {}
-    monkeypatch.setenv("RESEND_API_KEY", "test")
-    monkeypatch.setenv("INVITE_FROM", "test@example.com")
+    monkeypatch.setattr(week2, "invite_config", lambda: ("test-token", "test@example.com"))
 
     def capture(config, address, password):
         sent[address] = password
