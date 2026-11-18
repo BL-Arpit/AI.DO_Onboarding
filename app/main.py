@@ -1,4 +1,4 @@
-"""Application factory for the single-server week 1 build."""
+"""Application factory for the onboarding workspace."""
 
 import logging
 import os
@@ -40,8 +40,8 @@ def create_app():
         yield
 
     app = FastAPI(
-        title="AI.DO Onboarding — Week 2",
-        version="1.0.0",
+        title="AI.DO Onboarding",
+        version="3.0.0",
         description="Single-server authenticated onboarding, confirmed chat CRUD and role-scoped document submission.",
         lifespan=lifespan,
         responses={
@@ -59,9 +59,9 @@ def create_app():
         www_redirect=False,
     )
     app.add_middleware(RequestSecurity, settings=settings)
-    from app.api import auth, week2
+    from app.api import auth, conversations, onboarding
 
-    for router in (auth.router, week2.router):
+    for router in (auth.router, onboarding.router, conversations.router):
         app.include_router(router)
 
     @app.exception_handler(HTTPException)
@@ -104,7 +104,7 @@ def create_app():
 
     @app.get("/", include_in_schema=False)
     def index():
-        return FileResponse(ROOT / "app/static/week2.html")
+        return FileResponse(ROOT / "app/static/workspace.html")
 
     @app.get("/favicon.svg", include_in_schema=False)
     def favicon():

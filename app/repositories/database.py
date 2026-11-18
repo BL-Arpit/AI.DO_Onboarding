@@ -2,16 +2,61 @@ import json
 import sqlite3
 import time
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
 from app.core.config import Settings
 
 
+class DuplicateRecordError(Exception):
+    pass
+
+
+CONNECTION_CONFLICT_ERRORS = (sqlite3.IntegrityError, DuplicateRecordError)
+
+
+class SQLiteConnection(sqlite3.Connection):
+    row_order = "rowid"
+
+
+class PostgresConnection:
+    row_order = "position"
+
+    def __init__(self, db):
+        self.db = db
+
+    def execute(self, sql, params=()):
+        from psycopg.errors import UniqueViolation
+
+        if sql == "BEGIN IMMEDIATE":
+            # Existing write transactions depend on taking a lock before their first read.
+            # Transaction-scoped locking preserves that behavior across worker processes.
+            return self.db.execute("SELECT pg_advisory_xact_lock(652514113)")
+        try:
+            return self.db.execute(sql.replace("?", "%s"), params) if params else self.db.execute(sql)
+        except UniqueViolation as exc:
+            raise DuplicateRecordError("Unique constraint failed.") from exc
+
+
 @contextmanager
 def connection():
-    path = Settings.load().database
+    settings = Settings.load()
+    if settings.database_url:
+        import psycopg
+        from psycopg.rows import dict_row
+
+        with psycopg.connect(
+            settings.database_url,
+            row_factory=dict_row,
+            connect_timeout=5,
+            options="-c statement_timeout=15000 -c lock_timeout=10000",
+        ) as db:
+            yield PostgresConnection(db)
+        return
+
+    path = settings.database
     path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(path, timeout=15)
+    db = sqlite3.connect(path, timeout=15, factory=SQLiteConnection)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
     db.execute("PRAGMA busy_timeout=15000")
@@ -27,7 +72,22 @@ def connection():
 
 def initialize():
     with connection() as db:
+        if isinstance(db, PostgresConnection):
+            db.execute("BEGIN IMMEDIATE")
+            schema = Path(__file__).with_name("postgres_schema.sql").read_text()
+            for statement in schema.split(";"):
+                if statement.strip():
+                    db.execute(statement)
+            db.execute("DELETE FROM auth_sessions WHERE expires<?", (time.time(),))
+            return
+
         db.execute("PRAGMA journal_mode=WAL")
+        if db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='week2_uploads'"
+        ).fetchone() and not db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='document_uploads'"
+        ).fetchone():
+            db.execute("ALTER TABLE week2_uploads RENAME TO document_uploads")
         db.executescript((Path(__file__).with_name("schema.sql")).read_text())
         names = {r["name"] for r in db.execute("PRAGMA table_info(employees)")}
         if "deleted_at" not in names:
@@ -57,9 +117,17 @@ def record(row):
     if row is None:
         return None
     result = dict(row)
+    result.pop("position", None)
     for key in ("fields", "verification", "classification", "extraction"):
         if key in result:
             result[key] = json.loads(result[key])
+    return result
+
+
+def audit_record(row):
+    result = dict(row)
+    if isinstance(result.get("created"), datetime):
+        result["created"] = result["created"].isoformat()
     return result
 
 

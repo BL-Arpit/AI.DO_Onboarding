@@ -17,9 +17,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", required=True)
     args = parser.parse_args()
-    password = getpass.getpass("New password (at least 16 characters): ")
-    if len(password) < 16 or password != getpass.getpass("Repeat password: "):
-        parser.exit(1, "Passwords must match and contain at least 16 characters.\n")
+    password = getpass.getpass("New password (8 to 256 characters): ")
+    if not 8 <= len(password) <= 256 or password != getpass.getpass("Repeat password: "):
+        parser.exit(1, "Passwords must match and contain 8 to 256 characters.\n")
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         user = db.execute("SELECT id FROM users WHERE email=?", (args.email.lower(),)).fetchone()

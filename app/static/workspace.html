@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AI.DO | Onboarding Agent</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/workspace.css">
+  <script src="/assets/workspace.js" defer></script>
+</head>
+<body>
+  <main id="access" class="access">
+    <section class="access-card" aria-labelledby="access-title">
+      <div class="access-brand">AI.DO</div>
+      <h1 id="access-title">Onboarding Agent</h1>
+      <p id="access-description">Sign in to your onboarding workspace.</p>
+      <form id="login-form" hidden>
+        <label>Email address <input name="email" type="email" autocomplete="username" required maxlength="254"></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+        <button type="submit" class="primary">Sign in</button>
+      </form>
+      <form id="password-form" hidden>
+        <label>Temporary password <input name="old_password" type="password" autocomplete="current-password" required maxlength="256"></label>
+        <label>New password <input name="new_password" type="password" autocomplete="new-password" required minlength="8" maxlength="256"></label>
+        <button type="submit" class="primary">Change password</button>
+        <button id="setup-signout" type="button">Sign out</button>
+      </form>
+      <p id="access-status" role="status"></p>
+    </section>
+  </main>
+  <div id="workspace" class="workspace" hidden>
+    <aside id="sidebar" class="sidebar" aria-label="Conversation history">
+      <div class="sidebar-header">
+        <span class="wordmark">AI.DO</span>
+        <button id="collapse-sidebar" type="button" class="icon-button" aria-label="Hide chat history">
+          <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#panel"></use></svg>
+        </button>
+      </div>
+      <button id="new-chat" class="new-chat" type="button" aria-keyshortcuts="Control+K Meta+K">
+        <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#plus"></use></svg>
+        New chat
+        <kbd aria-hidden="true" id="new-chat-keys">Ctrl K</kbd>
+      </button>
+      <div class="history-label" id="history-label">Your chats</div>
+      <nav id="history" aria-labelledby="history-label"></nav>
+      <div class="account">
+        <span class="avatar" id="avatar" aria-hidden="true"></span>
+        <div class="account-text"><strong id="account-name"></strong><span id="account-role"></span></div>
+        <button id="signout" type="button" class="icon-button" aria-label="Sign out">
+          <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#logout"></use></svg>
+        </button>
+      </div>
+    </aside>
+    <main class="conversation">
+      <header class="conversation-header">
+        <button id="expand-sidebar" type="button" class="icon-button" aria-label="Show chat history" aria-controls="sidebar" aria-expanded="false">
+          <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#panel"></use></svg>
+        </button>
+        <div class="agent-control">
+          <button id="agent-toggle" class="agent-toggle" type="button" aria-expanded="false" aria-controls="agent-list">
+            Onboarding Agent
+            <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#chevron"></use></svg>
+          </button>
+          <div id="agent-list" class="popover agent-list" hidden>
+            <div class="agent-row">
+              <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#agent"></use></svg>
+              <span><strong>Onboarding Agent</strong><small>Employee onboarding and document review</small></span>
+              <svg aria-label="Active"><use href="/assets/workspace-icons.svg#check"></use></svg>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div id="stream" class="stream" tabindex="0" aria-label="Conversation">
+        <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+          <div class="agent-mark">
+            <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#agent"></use></svg>
+          </div>
+          <h1 id="welcome-title">What can I help with today?</h1>
+          <div id="suggestions" class="suggestions" aria-label="Suggested prompts"></div>
+        </section>
+        <div id="messages" class="messages" role="log" aria-label="Chat messages" aria-live="polite" hidden></div>
+      </div>
+      <footer class="composer-shell">
+        <p id="chat-status" class="chat-status" role="status" hidden></p>
+        <section id="pending-file" class="pending-file" aria-label="Pending attachment" hidden>
+          <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#file"></use></svg>
+          <div class="pending-info"><strong id="file-name"></strong><span id="file-caption"></span></div>
+          <label id="document-label">Document type <select id="document-type"></select></label>
+          <button id="upload-file" class="primary" type="button">Upload</button>
+          <button id="remove-file" class="icon-button" type="button" aria-label="Remove attachment">
+            <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#close"></use></svg>
+          </button>
+        </section>
+        <form id="composer" class="composer">
+          <div class="actions-control">
+            <button id="action-toggle" class="icon-button action-toggle" type="button" aria-label="Onboarding actions" aria-expanded="false" aria-controls="actions">
+              <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#plus"></use></svg>
+            </button>
+            <div id="actions" class="popover actions" hidden>
+              <div class="menu-label">Workspace actions</div>
+              <div id="action-items"></div>
+            </div>
+          </div>
+          <textarea id="prompt" name="prompt" maxlength="3000" rows="1" placeholder="Ask Onboarding Agent anything…" aria-label="Message"></textarea>
+          <button id="send" class="icon-button send" type="submit" aria-label="Send message" disabled>
+            <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#send"></use></svg>
+          </button>
+        </form>
+        <input id="picker" type="file" hidden aria-label="Choose an onboarding attachment">
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

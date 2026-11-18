@@ -2,12 +2,27 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BIND_HOST=0.0.0.0 OMP_THREAD_LIMIT=1 DOCUMENT_MODE=google_vision
 WORKDIR /project
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng libglib2.0-0 libgomp1 && rm -rf /var/lib/apt/lists/*
-COPY requirements.lock ./
+COPY requirements.lock requirements-gguf.txt ./
+ARG INSTALL_GGUF=0
+ARG GGUF_MODEL_URL=
+ARG GGUF_MODEL_SHA256=
+ENV OPENBLAS_NUM_THREADS=1
+
 RUN pip install --no-cache-dir -r requirements.lock
+RUN if [ "$INSTALL_GGUF" = "1" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends build-essential cmake && \
+      CMAKE_BUILD_PARALLEL_LEVEL=2 CMAKE_ARGS="-DGGML_NATIVE=OFF" pip install --no-cache-dir -r requirements-gguf.txt && \
+      apt-get purge -y --auto-remove build-essential cmake && rm -rf /var/lib/apt/lists/*; \
+    fi
 COPY app ./app
 COPY config ./config
 COPY model ./model
 COPY run.py ./
+RUN if [ -n "$GGUF_MODEL_URL" ]; then \
+      test "$INSTALL_GGUF" = 1 && test -n "$GGUF_MODEL_SHA256" && \
+      python -c 'import sys,urllib.request; urllib.request.urlretrieve(sys.argv[1], "/project/model/replies.gguf")' "$GGUF_MODEL_URL" && \
+      printf '%s  %s\n' "$GGUF_MODEL_SHA256" /project/model/replies.gguf | sha256sum -c -; \
+    fi
 RUN useradd --uid 10001 --create-home onboarding && mkdir -p /project/data && chown -R onboarding:onboarding /project/data
 USER onboarding
 EXPOSE 8000

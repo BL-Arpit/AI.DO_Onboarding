@@ -1,7 +1,7 @@
 """Environment parsing. Secrets never appear in model configuration or API responses."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -35,6 +35,7 @@ class Settings:
     max_document_jobs: int
     api_docs: bool
     trusted_hosts: tuple[str, ...]
+    database_url: str = field(default="", repr=False)
 
     @property
     def production(self):
@@ -67,6 +68,7 @@ class Settings:
             int(os.getenv("MAX_DOCUMENT_JOBS", "2")),
             boolean("ENABLE_API_DOCS", env != "production"),
             hosts,
+            os.getenv("DATABASE_URL", "").strip(),
         )
 
     def validate(self):
@@ -103,5 +105,9 @@ class Settings:
             raise ValueError("Invalid document resource limits.")
         if not self.trusted_hosts or "*" in self.trusted_hosts:
             raise ValueError("Set explicit TRUSTED_HOSTS; wildcard access is not supported.")
+        if self.database_url and urlsplit(self.database_url).scheme not in ("postgres", "postgresql"):
+            raise ValueError("DATABASE_URL must be a PostgreSQL URL.")
+        if not self.database_url and (self.production or os.getenv("RENDER", "").lower() == "true"):
+            raise ValueError("Set DATABASE_URL to persistent PostgreSQL before starting on Render.")
         if self.production and (parsed.scheme != "https" or self.document_mode == "mock_pan"):
             raise ValueError("Production requires HTTPS APP_URL and a real OCR provider.")

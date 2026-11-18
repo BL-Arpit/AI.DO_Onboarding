@@ -24,7 +24,7 @@ class LoginInput(BaseModel):
 class PasswordInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     old_password: str = Field(min_length=1, max_length=256)
-    new_password: str = Field(min_length=16, max_length=256)
+    new_password: str = Field(min_length=8, max_length=256)
 
 
 @router.post("/login", summary="Authenticate and create an HttpOnly session")

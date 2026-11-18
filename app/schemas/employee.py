@@ -24,7 +24,14 @@ class EmployeeInput(BaseModel):
     @classmethod
     def email_clean(cls, value):
         value = value.strip().lower()
-        if not re.fullmatch(r"[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+", value):
+        local, separator, domain = value.rpartition("@")
+        label = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+        if (
+            not separator or len(local) > 64 or len(value) > 254
+            or not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+", local)
+            or any(not part for part in local.split("."))
+            or not re.fullmatch(rf"{label}(?:\.{label})+", domain)
+        ):
             raise ValueError("Enter a valid email address.")
         return value
 

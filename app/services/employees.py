@@ -1,11 +1,10 @@
 import json
 import secrets
-import sqlite3
 import time
 
 from fastapi import HTTPException
 
-from app.repositories.database import audit, connection, record
+from app.repositories.database import audit, audit_record, CONNECTION_CONFLICT_ERRORS, connection, record
 from app.schemas.employee import EmployeeInput
 
 BASIC = {"name", "email", "phone", "client", "track"}
@@ -21,11 +20,11 @@ def get_employee(db, eid, details=True):
         person["documents"] = [
             record(r)
             for r in db.execute(
-                "SELECT * FROM documents WHERE employee_id=? ORDER BY rowid", (eid,)
+                f"SELECT * FROM documents WHERE employee_id=? ORDER BY {db.row_order}", (eid,)
             )
         ]
         person["audit"] = [
-            dict(r)
+            audit_record(r)
             for r in db.execute("SELECT * FROM audit WHERE employee_id=? ORDER BY id", (eid,))
         ]
     if details:
@@ -40,7 +39,7 @@ def list_employees(query=""):
         rows = [
             record(r)
             for r in db.execute(
-                "SELECT * FROM employees WHERE deleted_at IS NULL ORDER BY rowid DESC"
+                f"SELECT * FROM employees WHERE deleted_at IS NULL ORDER BY {db.row_order} DESC"
             )
         ]
     query = query.strip().casefold()
@@ -58,7 +57,7 @@ def check_version(person, version):
     if person["version"] != version:
         raise HTTPException(409, "This record changed. Refresh it and review the change again.")
     if person["status"] != "draft":
-        raise HTTPException(409, "This record is locked. It cannot be changed in week 1.")
+        raise HTTPException(409, "This record cannot be changed in its current status.")
 
 
 def create_employee(db, data, user):
@@ -78,7 +77,7 @@ def create_employee(db, data, user):
                 "draft",
             ),
         )
-    except sqlite3.IntegrityError:
+    except CONNECTION_CONFLICT_ERRORS:
         raise HTTPException(
             409,
             "An employee with that email already exists, including retained deleted records.",
@@ -102,7 +101,7 @@ def update_employee(db, eid, version, fields, user):
                 eid,
             ),
         )
-    except sqlite3.IntegrityError:
+    except CONNECTION_CONFLICT_ERRORS:
         raise HTTPException(409, "An employee with that email already exists.")
     audit(db, eid, user["id"], "employee_updated", ",".join(sorted(fields)))
     return get_employee(db, eid)
@@ -134,7 +133,7 @@ def save_document(db, eid, version, result, user):
     fields[kind] = result["extraction"]["extracted_data"]
     # Keep every upload as document history; fields hold the latest version per type.
     db.execute(
-        "INSERT INTO documents VALUES(?,?,?,?,?)",
+        "INSERT INTO documents(id,employee_id,kind,classification,extraction) VALUES(?,?,?,?,?)",
         (
             secrets.token_hex(12),
             eid,

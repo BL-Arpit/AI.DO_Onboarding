@@ -1,0 +1,333 @@
+[add]
+add employee
+add a new employee
+create an employee record
+register a new hire
+invite a candidate
+invite a new employee
+set up a new teammate
+onboard a new person
+add arpit to the system
+create employee riya
+start onboarding a new hire
+bring a new recruit into onboarding
+enter a new employee
+add a person manually
+i have a new starter to add
+add name arpit email emailaddr phone phonenum
+[import]
+add employee list
+add employees from excel
+add list
+bulk import
+upload an excel employee list
+import a spreadsheet of new hires
+import the xlsx workbook
+bulk upload employee records
+ingest several employee rows
+can we add these people together
+register multiple new hires
+import this csv
+bulk create employees
+i have a staff roster spreadsheet
+bring in candidates in one batch
+add these candidates from an office file
+[submissions]
+view submissions
+show all submissions
+who has submitted their documents
+who has not yet submitted
+which employees are waiting to submit
+show pending submissions
+open the submissions queue
+list the onboarding submissions
+show people yet to submit
+whose documents are still pending
+who is pending onboarding submission
+see employee submission progress
+any outstanding submissions
+show employees awaiting submission
+track which hires have submitted
+list active employees and their submission status
+[review]
+review documents
+review the documents
+open document review
+show employees ready for review
+show submitted employees
+review submitted records
+whose documents can i review
+show the verification queue
+who is ready for validation
+open the review queue
+check submissions that are ready to review
+validate employee documents
+inspect completed submissions
+show submitted applications awaiting review
+i want to review an employee's files
+which documents are ready for verification
+[status]
+find employee
+look up arpit
+show me arpit
+read employee details
+search for an employee
+open riya's record
+find a staff member
+check their onboarding status
+where is this person's onboarding at
+bring up their employee details
+show me the employee we added yesterday
+tell me whether he's onboarded yet
+i want to see her onboarding progress
+which record belongs to kiran
+what is that employee's phone number
+view employee record
+[profile]
+my profile
+show my details
+what is my current status
+check my onboarding checklist
+which documents am i missing
+view my onboarding progress
+what information do you have about me
+what files do i still need
+open my profile
+let me see my own details
+how far along am i
+show my personal information
+see my checklist
+what do i still need to upload
+show my submitted profile
+which documents have i uploaded
+[submit]
+submit my onboarding
+send my documents for review
+submit for review
+send my application to hr
+submit my files
+i am done uploading and ready to submit
+send this for review
+i want to submit everything
+finish my submission
+send my onboarding package
+pass my uploaded files to the reviewer
+mark my documents as submitted
+request hr review of my documents
+complete my submission
+hand over my documents for review
+can hr review my application now
+[appoint]
+appoint hr
+appoint an hr admin
+invite hr admin
+create an hr administrator
+add an hr admin
+set up a new human resources administrator
+invite a new hr manager
+grant hr admin access to somebody
+create a login for the hr administrator
+appoint a new hr manager
+give someone permission as an hr admin
+register an hr admin
+invite a colleague to administer hr
+make a new hr administrator account
+add hr administrator access
+send an invitation to the hr lead
+[help]
+help
+can you help me
+what can you do
+how does this work
+how do i use the onboarding agent
+what are the options
+explain onboarding requirements
+what are the required documents for onboarding
+hello
+hi there
+good morning
+hey
+thank you
+what should i do next
+outline how onboarding works
+tell me what actions are available
+what can i ask here
+guide me through the process
+[upload]
+upload document
+attach file
+i want to upload my bank document
+add my aadhaar
+send my pan card
+where do i attach my id
+upload document for verification
+attach a cheque image
+add a document
+i want to upload a file
+upload the pdf
+upload my passbook
+how can i attach my documents
+i need to send my proof
+add an attachment
+send an image of my identification
+[update]
+update employee
+edit profile
+change his phone number
+set employee email to emailaddr
+correct her name
+modify a record
+change my mobile to phonenum
+edit arpit's details
+update the employee mobile
+replace their email address
+fix the spelling of an employee name
+i want to change their contact information
+modify employee fields
+amend the name on this record
+update an employee's email
+set my new phone number
+[offboard]
+offboard employee
+delete employee
+remove this employee
+offboard arpit
+disable their employee account
+delete the employee record
+revoke this employee's access
+end the employee's onboarding
+disable the candidate login
+terminate the employee account
+take this person out of onboarding
+i want to remove a candidate
+offboard a staff member
+cancel employment for that individual
+archive this employee record
+permanently remove that candidate
+[onboard]
+approve employee
+approve onboarding for arpit
+mark this employee onboarded
+onboard this employee
+approve the submission
+complete their onboarding
+accept the reviewed documents
+approve their onboarding package
+confirm this employee meets requirements
+clear this candidate to start
+finish arpit's onboarding
+move the employee to onboarded
+complete onboarding for this person
+finalize the approved record
+accept this candidate's submission
+give final onboarding approval
+[reopen]
+request correction
+reopen the submission
+ask the employee to correct their documents
+return this submission for edits
+send the application back
+reject the submission for correction
+mark this document as needing correction
+reopen arpit's onboarding
+ask them to upload a corrected document
+this employee needs to resubmit
+return this for correction
+request that the employee fix the file
+i need to send their documents back
+move the submitted employee back to draft
+reopen this employee's application
+give the employee a chance to correct errors
+[resend]
+resend invitation
+send the invite again
+reissue employee invitation
+invite them again
+retry the failed email
+send a new temporary password
+ resend the welcome email
+send the original invite again
+retry arpit's onboarding invitation
+reissue their login details
+generate another invitation link
+email a replacement invite
+the candidate did not receive the email resend it
+please re-send their invitation
+i want to resend the employee's invite
+give the employee a fresh invite
+[export]
+export excel
+download master excel
+download the workbook
+export employee records
+export staff as spreadsheet
+give me the master workbook
+download all employee details
+export master sheet
+save an excel copy of the employee table
+generate the master excel report
+export onboarding data
+download a copy of all records
+download excel file
+i want the master spreadsheet
+give me an excel output
+export the employee roster
+[confirm]
+confirm
+yes confirm
+proceed
+do it
+go ahead
+yes go ahead
+approve this action
+confirm the pending change
+i agree proceed
+okay do that
+submit the pending operation
+i confirm the preview
+yes continue
+confirm these changes
+yes please go ahead
+apply the preview
+[cancel]
+cancel
+stop
+abort
+don't do it
+no cancel
+discard this pending action
+cancel the preview
+stop this request
+don't proceed
+i changed my mind
+cancel that operation
+no thanks stop
+leave it unchanged
+let's abandon this action
+forget the pending change
+drop this request
+[unknown]
+write a poem about elephants
+what is the weather today
+generate javascript for a website
+find flights to the moon
+book a hotel room
+what is two plus two
+recommend a pizza place
+explain a physics problem
+tell me the price of gold
+show football match results
+translate this sentence to french
+how to prepare a recipe
+who won the world cup
+summarize the news
+read a story about sailing
+change the colour of the website
+delete my emails
+send a birthday card
+add salt to the pasta
+upload a video to youtube
+review this song
+approve a loan for my mortgage
+what is my credit score
+would you recommend a laptop

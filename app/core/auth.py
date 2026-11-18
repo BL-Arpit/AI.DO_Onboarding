@@ -42,15 +42,16 @@ def csrf_for(token):
 
 def bootstrap():
     with connection() as db:
-        if db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+        db.execute("BEGIN IMMEDIATE")
+        if db.execute("SELECT 1 FROM users WHERE role='owner' LIMIT 1").fetchone():
             return
         from app.schemas.employee import EmployeeInput
 
-        email = EmployeeInput.email_clean(os.getenv("BOOTSTRAP_EMAIL", ""))
+        email = EmployeeInput.email_clean(os.getenv("BOOTSTRAP_EMAIL", "you@yourcompany.com"))
         password = os.getenv("BOOTSTRAP_PASSWORD", "")
-        if len(password) < 16 or password == "change-this-password-before-use":
+        if not 8 <= len(password) <= 256 or password == "change-this-password-before-use":
             raise RuntimeError(
-                "Set a unique BOOTSTRAP_PASSWORD of at least 16 characters, or run scripts/init_env.py."
+                "Set a unique BOOTSTRAP_PASSWORD of 8 to 256 characters, or run scripts/init_env.py."
             )
         db.execute(
             "INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)",
@@ -70,11 +71,11 @@ def bootstrap_test_hr():
     password = os.getenv("TEST_HR_PASSWORD", "")
     if not raw_email and not password:
         return
-    if not raw_email or len(password) < 16:
-        raise RuntimeError("Set TEST_HR_EMAIL and a TEST_HR_PASSWORD of at least 16 characters.")
+    if not 8 <= len(password) <= 256:
+        raise RuntimeError("Set TEST_HR_PASSWORD to 8 to 256 characters to enable the test HR account.")
     from app.schemas.employee import EmployeeInput
 
-    email = EmployeeInput.email_clean(raw_email)
+    email = EmployeeInput.email_clean(raw_email or "hr-test@example.com")
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         existing = db.execute("SELECT role FROM users WHERE email=?", (email,)).fetchone()
@@ -144,9 +145,9 @@ def authenticate(email, password, ip, response):
         db.execute("DELETE FROM auth_attempts WHERE created<?", (now - 60,))
         for key in keys:
             if (
-                db.execute("SELECT count(*) FROM auth_attempts WHERE subject=?", (key,)).fetchone()[
-                    0
-                ]
+                db.execute(
+                    "SELECT count(*) AS attempts FROM auth_attempts WHERE subject=?", (key,)
+                ).fetchone()["attempts"]
                 >= 10
             ):
                 raise HTTPException(
