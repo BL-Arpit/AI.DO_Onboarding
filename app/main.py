@@ -12,8 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.chat.providers import Provider
-from app.core.auth import bootstrap, current_user
+from app.core.auth import bootstrap, bootstrap_test_hr, current_user
 from app.core.config import ROOT, Settings
 from app.core.middleware import RequestSecurity
 from app.extraction.pipeline import DocumentPipeline
@@ -35,15 +34,15 @@ def create_app():
         settings.validate()
         initialize()
         bootstrap()
-        app.state.provider = Provider(settings)
+        bootstrap_test_hr()
         app.state.pipeline = DocumentPipeline(settings)
         app.state.pipeline.ready()
         yield
 
     app = FastAPI(
-        title="AI.DO Onboarding — Week 1",
+        title="AI.DO Onboarding — Week 2",
         version="1.0.0",
-        description="Single-server authenticated onboarding, confirmed chat CRUD and local document prefill.",
+        description="Single-server authenticated onboarding, confirmed chat CRUD and role-scoped document submission.",
         lifespan=lifespan,
         responses={
             code: {"model": ErrorResponse}
@@ -60,9 +59,9 @@ def create_app():
         www_redirect=False,
     )
     app.add_middleware(RequestSecurity, settings=settings)
-    from app.api import auth, chat, employees, imports
+    from app.api import auth, week2
 
-    for router in (auth.router, employees.router, chat.router, imports.router):
+    for router in (auth.router, week2.router):
         app.include_router(router)
 
     @app.exception_handler(HTTPException)
@@ -105,7 +104,7 @@ def create_app():
 
     @app.get("/", include_in_schema=False)
     def index():
-        return FileResponse(ROOT / "app/static/index.html")
+        return FileResponse(ROOT / "app/static/week2.html")
 
     @app.get("/favicon.svg", include_in_schema=False)
     def favicon():
@@ -132,7 +131,6 @@ def create_app():
         return {
             "document_mode": settings.document_mode,
             "classifier": settings.classifier,
-            "chat_provider": app.state.provider.entry["kind"],
             "single_server": True,
         }
 

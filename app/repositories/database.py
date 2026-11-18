@@ -32,6 +32,14 @@ def initialize():
         names = {r["name"] for r in db.execute("PRAGMA table_info(employees)")}
         if "deleted_at" not in names:
             db.execute("ALTER TABLE employees ADD COLUMN deleted_at REAL")
+        user_columns = {r["name"] for r in db.execute("PRAGMA table_info(users)")}
+        if "must_change" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0")
+        if "disabled" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0")
+        if "temp_expires" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN temp_expires REAL")
+        db.execute("UPDATE users SET role='owner' WHERE role='operator' AND NOT EXISTS (SELECT 1 FROM users WHERE role='owner') AND id=(SELECT id FROM users WHERE role='operator' ORDER BY rowid LIMIT 1)")
         # The new authentication store uses hashed tokens. Legacy sessions are invalidated once.
         if db.execute("PRAGMA user_version").fetchone()[0] < 2:
             if db.execute(

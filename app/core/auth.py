@@ -53,14 +53,38 @@ def bootstrap():
                 "Set a unique BOOTSTRAP_PASSWORD of at least 16 characters, or run scripts/init_env.py."
             )
         db.execute(
-            "INSERT INTO users VALUES(?,?,?,?,?)",
+            "INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)",
             (
                 secrets.token_hex(16),
                 email,
-                "Operator",
-                "operator",
+                "Owner",
+                "owner",
                 hasher.hash(password),
             ),
+        )
+
+
+def bootstrap_test_hr():
+    """Create the configured test HR account once, preserving later password changes."""
+    raw_email = os.getenv("TEST_HR_EMAIL", "").strip()
+    password = os.getenv("TEST_HR_PASSWORD", "")
+    if not raw_email and not password:
+        return
+    if not raw_email or len(password) < 16:
+        raise RuntimeError("Set TEST_HR_EMAIL and a TEST_HR_PASSWORD of at least 16 characters.")
+    from app.schemas.employee import EmployeeInput
+
+    email = EmployeeInput.email_clean(raw_email)
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        existing = db.execute("SELECT role FROM users WHERE email=?", (email,)).fetchone()
+        if existing:
+            if existing["role"] != "hr_admin":
+                raise RuntimeError("TEST_HR_EMAIL already belongs to a different role.")
+            return
+        db.execute(
+            "INSERT INTO users(id,email,name,role,password) VALUES(?,?,?,?,?)",
+            (secrets.token_hex(16), email, "Test HR", "hr_admin", hasher.hash(password)),
         )
 
 
@@ -72,17 +96,17 @@ def current_user(request: Request, token: str | None = Depends(cookie)):
             "SELECT users.*,auth_sessions.expires,auth_sessions.last_seen FROM users JOIN auth_sessions ON users.id=auth_sessions.user_id WHERE token_hash=?",
             (digest(token or ""),),
         ).fetchone()
-        if not row or row["expires"] <= now or row["last_seen"] + settings.idle_seconds <= now:
+        if not row or row["disabled"] or (row["must_change"] and (row["temp_expires"] or 0) <= now) or row["expires"] <= now or row["last_seen"] + settings.idle_seconds <= now:
             if token:
                 db.execute("DELETE FROM auth_sessions WHERE token_hash=?", (digest(token),))
             raise HTTPException(401, "Please sign in.")
-        if row["role"] not in ("operator", "owner"):
-            raise HTTPException(403, "An operator account is required for this week 1 build.")
+        if row["role"] not in ("owner", "hr_admin", "employee"):
+            raise HTTPException(403, "This account has no access.")
         db.execute(
             "UPDATE auth_sessions SET last_seen=? WHERE token_hash=?",
             (now, digest(token)),
         )
-    return {k: row[k] for k in ("id", "name", "email", "role")}
+    return {k: row[k] for k in ("id", "name", "email", "role", "must_change")}
 
 
 def write_access(
@@ -135,7 +159,7 @@ def authenticate(email, password, ip, response):
     with connection() as db:
         row = db.execute("SELECT * FROM users WHERE email=?", (email.strip().lower(),)).fetchone()
         valid = password_matches(password, row["password"] if row else DUMMY)
-        if not row or not valid:
+        if not row or not valid or row["disabled"] or (row["must_change"] and (row["temp_expires"] or 0) <= now):
             raise HTTPException(401, "Invalid email or password.")
         if not row["password"].startswith("$argon2") or hasher.check_needs_rehash(row["password"]):
             db.execute(
