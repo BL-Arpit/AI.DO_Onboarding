@@ -8,6 +8,19 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 
 
+class MissingDatabaseConfiguration(ValueError):
+    """Persistent storage is required before accounts can be initialized."""
+
+
+def database_url():
+    """Accept common connection names used by PostgreSQL hosts."""
+    for name in ("DATABASE_URL", "POSTGRES_URL", "POSTGRESQL_URL"):
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
 def project_path(value):
     path = Path(value)
     return (path if path.is_absolute() else ROOT / path).resolve()
@@ -68,7 +81,7 @@ class Settings:
             int(os.getenv("MAX_DOCUMENT_JOBS", "2")),
             boolean("ENABLE_API_DOCS", env != "production"),
             hosts,
-            os.getenv("DATABASE_URL", "").strip(),
+            database_url(),
         )
 
     def validate(self):
@@ -108,6 +121,6 @@ class Settings:
         if self.database_url and urlsplit(self.database_url).scheme not in ("postgres", "postgresql"):
             raise ValueError("DATABASE_URL must be a PostgreSQL URL.")
         if not self.database_url and (self.production or os.getenv("RENDER", "").lower() == "true"):
-            raise ValueError("Set DATABASE_URL to persistent PostgreSQL before starting on Render.")
+            raise MissingDatabaseConfiguration("Set DATABASE_URL to persistent PostgreSQL before starting on Render.")
         if self.production and (parsed.scheme != "https" or self.document_mode == "mock_pan"):
             raise ValueError("Production requires HTTPS APP_URL and a real OCR provider.")

@@ -61,3 +61,13 @@ Set `INSTALL_GGUF=1` and `GGUF_MODEL_PATH=/project/model/replies.gguf` in Render
 | --- | --- | --- |
 | SmolLM2-135M Q4_K_S, 102 MB | [Download](https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_S.gguf) | `a8654d8eb14c45ef3c6170b3f0c6ccd02ba3e1a6b406ca02f4ffadf0b1b222a0` |
 | SmolLM2-360M Q4_K_M, 271 MB | [Download](https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf) | `2fa3f013dcdd7b99f9b237717fa0b12d75bbb89984cc1274be1471a465bac9c2` |
+
+## Fix for missing DATABASE_URL on Render
+
+The reported Docker build succeeded. The service stopped at startup because no PostgreSQL URL was supplied. This build now serves an administrator setup page with HTTP 503 until persistent storage is configured. Account and document APIs remain unavailable during setup. /health/live returns HTTP 200 with ready false, and /health/ready returns HTTP 503.
+
+Create or choose a PostgreSQL database. For Render Postgres, open its Info page, copy the Internal Database URL if the web service shares its region, and save that value as DATABASE_URL in the web service Environment page. For external PostgreSQL, use the provider full URL including required SSL options. Select Save and deploy.
+
+This build also recognizes POSTGRES_URL and POSTGRESQL_URL when DATABASE_URL is empty. It requires a real database to preserve accounts. Configure MongoDB and Qdrant using the earlier sections before testing conversations and vector search.
+
+The supplied logs show INSTALL_GGUF=0 and an empty model URL, so that deployment used deterministic replies with the CNN. To run the optional local language model, apply the model settings above and rebuild.

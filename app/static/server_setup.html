@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI.DO server setup</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#171717;color:#eee}
+body{max-width:40rem;margin:12vh auto;padding:1.5rem;line-height:1.65}
+h1{font-size:1.7rem}li{margin:.7rem 0}code{background:#292929;padding:.2rem .35rem;border-radius:.3rem}
+p{color:#c5c5c5}
+</style>
+</head>
+<body>
+<strong>AI.DO</strong>
+<h1>Connect your PostgreSQL database</h1>
+<p>Your server is running. An administrator needs to configure persistent storage before anyone can sign in.</p>
+<ol>
+<li>Open your PostgreSQL provider dashboard and copy its connection URL.</li>
+<li>In Render, open this web service and select <strong>Environment</strong>.</li>
+<li>Add <code>DATABASE_URL</code> with the connection URL, then select <strong>Save and deploy</strong>.</li>
+</ol>
+<p>For Render Postgres in the same region, use its Internal Database URL. For an external provider, use its full connection URL and required SSL settings.</p>
+<p>After redeployment, refresh this page. The app will create its tables and configured test accounts.</p>
+</body></html>

@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.auth import bootstrap, bootstrap_test_hr, current_user
-from app.core.config import ROOT, Settings
+from app.core.config import ROOT, MissingDatabaseConfiguration, Settings
 from app.core.middleware import RequestSecurity
 from app.extraction.pipeline import DocumentPipeline
 from app.repositories.database import initialize
@@ -31,7 +31,14 @@ def create_app():
     @asynccontextmanager
     async def lifespan(app):
         os.umask(0o077)
-        settings.validate()
+        app.state.setup_required = False
+        try:
+            settings.validate()
+        except MissingDatabaseConfiguration:
+            app.state.setup_required = True
+            log.error("Persistent PostgreSQL is not configured. Set DATABASE_URL and redeploy.")
+            yield
+            return
         initialize()
         bootstrap()
         bootstrap_test_hr()
@@ -53,6 +60,21 @@ def create_app():
         openapi_url=None,
     )
     app.state.settings = settings
+    app.state.setup_required = False
+
+    @app.middleware("http")
+    async def require_storage(request, call_next):
+        if app.state.setup_required:
+            if request.url.path == "/health/live":
+                return JSONResponse({"status": "running", "ready": False})
+            if request.url.path == "/":
+                return FileResponse(ROOT / "app/static/server_setup.html", status_code=503)
+            return JSONResponse(
+                {"detail": "Server setup required. Configure DATABASE_URL in Render Environment and redeploy."},
+                status_code=503,
+            )
+        return await call_next(request)
+
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=list(settings.trusted_hosts),
