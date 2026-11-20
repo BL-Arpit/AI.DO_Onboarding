@@ -1,15 +1,15 @@
 :root {
   color-scheme: dark;
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
-  --page: #131313;
-  --sidebar: #1c1b1b;
-  --surface: #211f1f;
-  --raised: #2a2a2a;
-  --border: #38383c;
+  --page: #212121;
+  --sidebar: #171717;
+  --surface: #292929;
+  --raised: #303030;
+  --border: #414141;
   --text: #e9e7e7;
   --muted: #acacb6;
-  --blue: #adc6ff;
-  --blue-strong: #4d8eff;
+  --blue: #ececec;
+  --blue-strong: #a3c9b5;
   color: var(--text);
   background: var(--page);
   font-size: 15px;
@@ -157,3 +157,78 @@ kbd { margin-left: auto; border-radius: 5px; color: var(--muted); background: va
 .draft-field input:disabled { opacity: .7; }
 .draft-error { color: #ffb4ab; }
 .draft-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-top: 3px; }
+
+/* Quiet surfaces and inline onboarding cards share the chat's visual language. */
+:root { --muted: #a5a5a5; --text: #ececec; }
+.sidebar { padding: 8px 12px 0; }
+.sidebar-header { height: 54px; }
+.wordmark { letter-spacing: -.07em; font-size: 22px; }
+.new-chat { background: transparent; padding: 12px 10px; font-weight: 500; }
+.new-chat svg { color: var(--text); }
+.history-label { text-transform: none; letter-spacing: 0; padding-top: 28px; font-size: 12px; }
+.history-item { padding: 11px 12px; color: #c8c8c8; }
+.history-item[aria-current="page"] { box-shadow: none; background: #2b2b2b; }
+.account { border-top-color: #292929; padding: 16px 4px; }
+.avatar { background: #32453b; color: #d3ebdb; }
+.conversation { grid-template-rows: 68px minmax(0, 1fr) auto; }
+.agent-toggle { background: transparent; font-size: 17px; letter-spacing: -.025em; font-weight: 600; }
+.welcome { gap: 24px; }
+.agent-mark { background: #2c2c2c; color: #d5e9dd; border: 1px solid #3d4942; width: 54px; height: 54px; border-radius: 18px; }
+.welcome h1 { font-weight: 550; font-size: clamp(28px, 4vw, 38px); }
+.suggestion { padding: 10px 16px; border-color: #454545; border-radius: 24px; font-size: 13px; transition: background .15s, border-color .15s; }
+.suggestion:hover { border-color: #777; }
+.messages { gap: 32px; padding: 24px 0 48px; }
+.turn-text { line-height: 1.8; }
+.turn-label { color: #bdbdbd; font-size: 11px; letter-spacing: .04em; margin-bottom: 10px; }
+.user .turn-text { background: #303030; padding: 11px 19px; border-radius: 24px; line-height: 1.65; }
+.result { margin-top: 16px; padding: 24px; background: #262626; border-color: #3b3b3b; border-radius: 20px; box-shadow: 0 5px 20px #00000010; }
+.result h3 { font-size: 17px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 16px; }
+.employee-draft { gap: 18px; }
+.employee-draft h3 { margin-bottom: 0; }
+.draft-intro { color: var(--muted); font-size: 13px; line-height: 1.6; margin: -8px 0 2px !important; }
+.draft-field { gap: 8px; font-size: 12px; font-weight: 500; color: #bcbcbc; }
+.draft-field input, .access-card input { border: 1px solid #484848; border-radius: 12px; background: #212121; padding: 13px 15px; font-size: 14px; line-height: 1.5; transition: border-color .15s, box-shadow .15s; }
+.draft-field input:hover, .access-card input:hover { border-color: #676767; }
+.draft-field input:focus, .access-card input:focus { outline: none; border-color: #a3c9b5; box-shadow: 0 0 0 3px #a3c9b512; }
+.draft-field input::placeholder { color: #777; font-weight: 400; }
+.draft-error { font-size: 12px; font-weight: 400; }
+.draft-controls { align-items: center; gap: 10px; padding-top: 18px; margin-top: 2px; border-top: 1px solid #3b3b3b; }
+.primary { background: #ececec; color: #171717; border-radius: 24px; padding: 11px 20px; font-size: 13px; font-weight: 600; }
+.primary:hover:not(:disabled) { background: #fff; }
+.inline-action { color: #dedede; border-color: #494949; border-radius: 22px; padding: 9px 16px; font-size: 13px; margin-top: 10px; }
+.draft-controls .inline-action { margin: 0; border-color: transparent; color: #bdbdbd; }
+.fields { grid-template-columns: minmax(80px, 110px) minmax(0, 1fr); gap: 0 18px; font-size: 13px; }
+.fields dt, .fields dd { padding: 9px 0; border-bottom: 1px solid #ffffff08; }
+.fields dd { overflow-wrap: anywhere; }
+.person + .person { margin-top: 22px; padding-top: 22px; }
+.result summary { padding: 9px 0; color: #dedede; font-size: 13px; }
+.composer-shell { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+.composer { background: #303030; border: 1px solid #3c3c3c; border-radius: 28px; padding: 13px 14px; gap: 12px; box-shadow: none; }
+.composer:focus-within { border-color: #626262; }
+.composer.dragover { border-color: #a3c9b5; background: #2b3830; }
+.composer textarea { padding: 7px 0; }
+.action-toggle { background: transparent; color: #ddd; }
+.send { background: #ececec; color: #171717; }
+.send:hover:not(:disabled) { background: #fff; color: #171717; }
+.send:disabled { background: #444; color: #929292; }
+.popover { border-color: #454545; background: #262626; border-radius: 18px; padding: 8px; }
+.action-item { padding: 12px; border-radius: 11px; font-size: 13px; }
+.action-item svg { color: #c5c5c5; }
+.pending-file { border-radius: 18px; padding: 13px 15px; background: #292929; }
+.access { background: radial-gradient(ellipse at 50% 0, #2a302c 0, #212121 55%); }
+.access-card { background: #242424; padding: 36px; border-radius: 24px; border-color: #414141; box-shadow: 0 20px 80px #0002; width: min(100%, 440px); }
+.access-brand { color: #ececec; margin-bottom: 28px; }
+.access-card h1 { font-size: 28px; font-weight: 550; }
+.access-card p { font-size: 13px; line-height: 1.7; margin-bottom: 24px; }
+.access-card form { gap: 20px; }
+.access-card label { gap: 8px; font-size: 12px; }
+.access-card .primary { margin-top: 4px; padding: 13px 20px; }
+@media (max-width: 680px) {
+  .conversation { grid-template-rows: 58px minmax(0, 1fr) auto; }
+  .result { padding: 20px 16px; border-radius: 18px; }
+  .messages { width: calc(100% - 32px); gap: 24px; }
+  .composer-shell { width: calc(100% - 24px); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .access-card { padding: 28px 24px; }
+  .fields { grid-template-columns: 80px minmax(0, 1fr); gap: 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }

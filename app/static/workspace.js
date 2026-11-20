@@ -307,6 +307,7 @@ function renderDraft(container, data, active) {
   const form = node("form", undefined, "employee-draft");
   form.noValidate = true;
   form.append(node("h3", "Employee details"));
+  form.append(node("p", "Check the details below before preparing the invitation.", "draft-intro"));
   const fields = [
     ["name", "Full name", "text", 120], ["email", "Work email", "email", 254],
     ["phone", "Phone", "tel", 30],
@@ -317,6 +318,8 @@ function renderDraft(container, data, active) {
     input.name = name;
     input.type = type;
     input.maxLength = maximum;
+    input.placeholder = { name: "Full name", email: "name@company.com", phone: "+91 98765 43210" }[name];
+    input.autocomplete = { name: "name", email: "email", phone: "tel" }[name];
     input.value = data.fields?.[name] || "";
     input.required = true;
     input.disabled = !active;

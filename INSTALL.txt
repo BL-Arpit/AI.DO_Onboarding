@@ -1,0 +1,1 @@
+Replace app/static/workspace.css and app/static/workspace.js in your current Week 3 project. Commit and push to the branch Render deploys. Redeploy, then hard refresh the browser (Ctrl+Shift+R). No database, authentication, OCR, Gmail, or environment changes are required. This package contains only the two updated frontend files.
