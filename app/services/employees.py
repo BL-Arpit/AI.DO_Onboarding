@@ -6,13 +6,15 @@ from fastapi import HTTPException
 
 from app.repositories.database import audit, audit_record, CONNECTION_CONFLICT_ERRORS, connection, record
 from app.schemas.employee import EmployeeInput
+from app.services.name_matching import compare_names
+from app.services.tenant_metadata import tenant_context, validate_metadata
 
 BASIC = {"name", "email", "phone", "client", "track"}
 
 
 def get_employee(db, eid, details=True):
     person = record(
-        db.execute("SELECT * FROM employees WHERE id=? AND deleted_at IS NULL", (eid,)).fetchone()
+        db.execute("SELECT * FROM employees WHERE id=? AND tenant_id=? AND deleted_at IS NULL", (eid, tenant_context.get())).fetchone()
     )
     if not person:
         raise HTTPException(404, "Employee not found.")
@@ -39,7 +41,7 @@ def list_employees(query=""):
         rows = [
             record(r)
             for r in db.execute(
-                f"SELECT * FROM employees WHERE deleted_at IS NULL ORDER BY {db.row_order} DESC"
+                f"SELECT * FROM employees WHERE tenant_id=? AND deleted_at IS NULL ORDER BY {db.row_order} DESC", (tenant_context.get(),)
             )
         ]
     query = query.strip().casefold()
@@ -61,11 +63,14 @@ def check_version(person, version):
 
 
 def create_employee(db, data, user):
-    person = EmployeeInput.model_validate(data).model_dump()
+    tenant_id=user.get("tenant_id", tenant_context.get())
+    tenant_context.set(tenant_id)
+    metadata=validate_metadata(data.get("metadata", {}),tenant_id,require_all=True)
+    person = EmployeeInput.model_validate({k:v for k,v in data.items() if k != "metadata"}).model_dump()
     eid = secrets.token_hex(12)
     try:
         db.execute(
-            "INSERT INTO employees(id,created_by,name,email,phone,client,track,status) VALUES(?,?,?,?,?,?,?,?)",
+            "INSERT INTO employees(id,created_by,name,email,phone,client,track,status,tenant_id,metadata) VALUES(?,?,?,?,?,?,?,?,?,?)",
             (
                 eid,
                 user["id"],
@@ -75,6 +80,8 @@ def create_employee(db, data, user):
                 person["client"],
                 person["track"],
                 "draft",
+                tenant_id,
+                json.dumps(metadata),
             ),
         )
     except CONNECTION_CONFLICT_ERRORS:
@@ -89,21 +96,26 @@ def create_employee(db, data, user):
 def update_employee(db, eid, version, fields, user):
     person = get_employee(db, eid)
     check_version(person, version)
-    if not fields or set(fields) - BASIC:
-        raise HTTPException(422, "Only name, email, phone, client and track may be changed here.")
+    if not fields:
+        raise HTTPException(422,"Provide a field to update.")
+    extra = {k:v for k,v in fields.items() if k not in BASIC}
+    merged = {**person["metadata"], **extra}
+    if extra:
+        validate_metadata(merged, person["tenant_id"], require_all=True)
+    fields = {k:v for k,v in fields.items() if k in BASIC}
     cleaned = EmployeeInput.model_validate({**{k: person[k] for k in BASIC}, **fields}).model_dump()
     try:
         db.execute(
-            "UPDATE employees SET name=?,email=?,phone=?,client=?,track=?,verification=CASE WHEN ? THEN '{}' ELSE verification END,version=version+1 WHERE id=?",
+            "UPDATE employees SET name=?,email=?,phone=?,client=?,track=?,metadata=?,verification=CASE WHEN ? THEN '{}' ELSE verification END,version=version+1 WHERE id=?",
             (
                 *(cleaned[k] for k in ("name", "email", "phone", "client", "track")),
-                "name" in fields,
+                json.dumps(merged), "name" in fields,
                 eid,
             ),
         )
     except CONNECTION_CONFLICT_ERRORS:
         raise HTTPException(409, "An employee with that email already exists.")
-    audit(db, eid, user["id"], "employee_updated", ",".join(sorted(fields)))
+    audit(db, eid, user["id"], "employee_updated", ",".join(sorted(set(fields) | set(extra))))
     return get_employee(db, eid)
 
 
@@ -200,7 +212,7 @@ def verify_employee(db, eid, version, user):
             if data.get("pan_number") and not validate_pan_number(data["pan_number"]):
                 issues.append("PAN_CARD: current PAN number has an invalid format.")
         name = data.get("name") or data.get("account_holder_name")
-        if name and name.casefold().split() != person["name"].casefold().split():
+        if name and compare_names(person["name"], name) != "match":
             issues.append(doc["kind"] + ": name differs from employee.")
     result = {
         "status": "needs_review" if issues else "checklist_complete",

@@ -49,8 +49,9 @@ def connection():
             settings.database_url,
             row_factory=dict_row,
             connect_timeout=5,
-            options="-c statement_timeout=15000 -c lock_timeout=10000",
         ) as db:
+            db.execute("SET LOCAL statement_timeout = '15s'")
+            db.execute("SET LOCAL lock_timeout = '10s'")
             yield PostgresConnection(db)
         return
 
@@ -78,6 +79,7 @@ def initialize():
             for statement in schema.split(";"):
                 if statement.strip():
                     db.execute(statement)
+            initialize_tenants(db)
             db.execute("DELETE FROM auth_sessions WHERE expires<?", (time.time(),))
             return
 
@@ -111,6 +113,35 @@ def initialize():
         db.execute("DELETE FROM document_previews WHERE expires<?", (time.time(),))
         db.execute("DELETE FROM pending_actions WHERE expires<?", (time.time(),))
         db.execute("DELETE FROM imports WHERE expires<?", (time.time(),))
+        initialize_tenants(db)
+
+
+def initialize_tenants(db):
+    postgres = isinstance(db, PostgresConnection)
+    db.execute("CREATE TABLE IF NOT EXISTS tenants(id TEXT PRIMARY KEY,name TEXT NOT NULL,config TEXT NOT NULL,version INTEGER NOT NULL,created DOUBLE PRECISION NOT NULL)")
+    db.execute("CREATE TABLE IF NOT EXISTS tenant_schema_versions(tenant_id TEXT NOT NULL,version INTEGER NOT NULL,config TEXT NOT NULL,actor TEXT NOT NULL,created DOUBLE PRECISION NOT NULL,PRIMARY KEY(tenant_id,version))")
+    from app.services.tenant_metadata import DEFAULT_CONFIG
+    db.execute(
+        "INSERT INTO tenants(id,name,config,version,created) VALUES(?,?,?,1,?) ON CONFLICT(id) DO NOTHING",
+        ("default","Default organization",json.dumps(DEFAULT_CONFIG),time.time()),
+    )
+    if postgres:
+        for statement in (
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default' REFERENCES tenants(id)",
+            "ALTER TABLE employees ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default' REFERENCES tenants(id)",
+            "ALTER TABLE employees ADD COLUMN IF NOT EXISTS metadata TEXT NOT NULL DEFAULT '{}'",
+            "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check",
+            "ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('owner','hr_admin','employee','super_admin'))",
+        ):
+            db.execute(statement)
+    else:
+        for table,columns in {"users":{"tenant_id":"TEXT NOT NULL DEFAULT 'default'"},"employees":{"tenant_id":"TEXT NOT NULL DEFAULT 'default'","metadata":"TEXT NOT NULL DEFAULT '{}'"}}.items():
+            existing={r["name"] for r in db.execute(f"PRAGMA table_info({table})")}
+            for name,definition in columns.items():
+                if name not in existing:
+                    db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+    db.execute("CREATE INDEX IF NOT EXISTS ix_employee_tenant ON employees(tenant_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS ix_user_tenant ON users(tenant_id)")
 
 
 def record(row):
@@ -118,7 +149,7 @@ def record(row):
         return None
     result = dict(row)
     result.pop("position", None)
-    for key in ("fields", "verification", "classification", "extraction"):
+    for key in ("fields", "verification", "classification", "extraction", "metadata"):
         if key in result:
             result[key] = json.loads(result[key])
     return result

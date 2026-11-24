@@ -1,5 +1,6 @@
 """Role-aware onboarding intent, context resolution and typed action dispatch."""
 import re
+import os
 import secrets
 from string import punctuation
 from typing import Literal
@@ -8,7 +9,8 @@ from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.api import onboarding
-from app.chat.local_models import predict_intent, render_reply
+from app.chat.local_models import predict_intent
+from app.chat.conversational_model import interpret
 from app.repositories import conversations
 from app.schemas.employee import EmployeeInput, UpdateEmployee, VersionInput
 from app.services.employee_search import search_employees
@@ -16,7 +18,7 @@ from app.services.employee_search import search_employees
 Action = Literal[
     "add", "import", "submissions", "review", "status", "profile", "submit", "appoint",
     "help", "upload", "update", "offboard", "onboard", "reopen", "resend", "export",
-    "confirm", "cancel",
+    "confirm", "cancel", "hr_list",
 ]
 
 STAFF = {"add", "import", "submissions", "review", "status", "offboard", "onboard",
@@ -33,6 +35,7 @@ PERSON_FIELDS = ("id", "name", "email", "phone", "status", "client", "track")
 
 
 class EmployeeDraftFields(BaseModel):
+    metadata: dict[str, str | bool | int | float] = Field(default_factory=dict,max_length=100)
     model_config = ConfigDict(extra="forbid")
     name: str = Field(default="", max_length=120)
     email: str = Field(default="", max_length=254)
@@ -45,6 +48,8 @@ class Turn(BaseModel):
     action: Action | None = None
     fields: EmployeeDraftFields | None = None
     confirmation_id: str | None = Field(default=None, max_length=32)
+    organization_id: str | None = Field(default=None,max_length=40)
+    setup: dict | None = None
     draft_id: str | None = Field(default=None, max_length=32)
 
 
@@ -102,7 +107,7 @@ def _person_card(person):
     result = {key: person.get(key) for key in PERSON_FIELDS}
     if "workflow" in person:
         result["workflow"] = {
-            key: person["workflow"][key] for key in ("government_types", "bank_types")
+            key: person["workflow"][key] for key in ("government_types", "bank_types", "minimum_government","minimum_bank")
         }
     if "documents" in person:
         result["documents"] = [
@@ -129,7 +134,7 @@ def _add_employee(turn, state):
         raise HTTPException(409, "This employee draft is no longer active.")
     current = {key: draft.get("fields", {}).get(key, "") for key in DRAFT_FIELDS}
     if turn.fields is not None:
-        current.update(turn.fields.model_dump())
+        current.update(turn.fields.model_dump(exclude_unset=True))
     elif turn.action is None or turn.text.strip().lower() != "add employee":
         _read_employee_fields(turn.text, current, bool(draft))
     errors = {}
@@ -150,6 +155,7 @@ def _add_employee(turn, state):
 
 
 def _read_employee_fields(text, current, has_draft):
+    text = re.sub(r"^(?:please\s+)?(?:change|update|correct|set)\s+", "", text, flags=re.I)
     prompt = re.sub(
         r"^(?:(?:please|can you|i want to)\s+)?(?:add|create|invite)\s+(?:(?:an?|new)\s+)*(?:employee(?:\s+named)?\s*)?",
         "", text, flags=re.I,
@@ -228,9 +234,14 @@ def _change(turn, user, state):
         return _proposal(state, "profile_update", updated.model_dump(), f"Update your {own.group(1).lower()}?")
     onboarding.staff(user)
     update = re.fullmatch(r"(.+?)(?:,\s*|'s\s+|’s\s+)(?:set\s+)?(name|email|phone|client|track)(?:\s+to|:|=|\s)\s*(.+)", text, re.I)
-    if not update:
+    context_change = re.fullmatch(r"(?:(?:his|her|their|the)\s+)?(name|email|phone|client|track)(?:\s+to|:|=)\s*(.+)", text, re.I)
+    if not update and context_change:
+        target = "that employee"
+        field, value = context_change.groups()
+    elif update:
+        target, field, value = update.groups()
+    else:
         return "Try “update arpit@example.com, phone to +911234567890.”", None
-    target, field, value = update.groups()
     person, reply, data = _lookup(target, user, state, exact=True)
     if not person:
         return reply, data
@@ -290,7 +301,48 @@ def _execute(thread, state, turn, user):
     return reply, {"type": "employee", "employee": _person_card(person)}
 
 
-def reply_to(thread, state, turn, user):
+def _legacy_reply_to(thread, state, turn, user):
+    hr_directory = re.fullmatch(
+        r"(?:please\s+)?(?:show|list|find|search|view)(?:\s+me)?(?:\s+all)?(?:\s+the)?\s+"
+        r"(?:my\s+)?(?:hr|hrs)(?:\s+admins?)?(?:\s+(?:list|accounts|team))?(?:\s+(.+?))?[.!?]*",
+        turn.text.strip(), re.I)
+    if turn.action == "hr_list" or (turn.action is None and hr_directory):
+        query = (hr_directory.group(1) or "").strip().rstrip(".!?") if hr_directory else ""
+        result = onboarding.list_admins(q=query, user=user)
+        count = len(result["admins"])
+        return (f"I found {count} HR account(s)." if count else "No HR accounts match this search.",
+                {"type": "hr_admins", "admins": result["admins"]})
+    # Explicit confirmations remain deterministic. The model cannot authorize a write.
+    if turn.action is None and turn.text.lower().strip().rstrip(".!?") not in {
+        "confirm", "yes", "yes, confirm", "cancel", "no", "never mind"
+    }:
+        pending = state.get("pending", {})
+        correction = re.fullmatch(
+            r"(?:please\s+)?(?:(?:change|update|correct|set)\s+)?(?:the\s+)?"
+            r"(name|email|phone)(?:\s+(?:address|number))?\s*(?::|=| is | to )\s*(.+)",
+            turn.text, re.I)
+        if correction and pending.get("operation") in {"add", "appoint"}:
+            values = dict(pending["values"])
+            field, value = correction.groups()
+            if field.lower() not in values:
+                return "That invitation does not use this field.", None
+            values[field.lower()] = value.strip()
+            if pending["operation"] == "appoint":
+                onboarding.permit(user, "owner")
+                admin = onboarding.Admin.model_validate(values)
+                return _proposal(state, "appoint", admin.model_dump(), f"Invite {admin.name} as an HR admin?")
+            onboarding.staff(user)
+            state.pop("pending", None)
+            state["draft"] = {"id": secrets.token_hex(16), "fields": values}
+            return _add_employee(Turn(text="name: " + values["name"]), state)
+        interpreted = interpret(thread, state, turn.text, user["role"])
+        if interpreted:
+            if interpreted["action"] == "hr_list":
+                result = onboarding.list_admins(q=interpreted["command"].strip(), user=user)
+                return f"I found {len(result['admins'])} HR account(s).", {"type": "hr_admins", **result}
+            if interpreted["action"] == "chat":
+                return interpreted["reply"] or "Could you tell me a little more?", None
+            turn = Turn(text=interpreted["command"], action=interpreted["action"])
     intent = _intent(turn)
     if intent in STAFF:
         onboarding.staff(user)
@@ -355,10 +407,13 @@ def reply_to(thread, state, turn, user):
         if user["role"] == "employee"
         else "I can help you add or find employees, review submissions or import an employee list."
     )
-    return render_reply(help_text, allow_model=True), None
+    return help_text, None
 
 
 def attach_to(request, state, file, document_type, user):
+    if user["role"] == "super_admin":
+        from app.chat.customer_setup import draft, from_sheet
+        return draft(state, from_sheet(file, request.app.state.settings.max_upload_bytes))
     if user["role"] == "employee":
         person = onboarding.document(request, file, document_type, user=user)
         return "Document received. Here’s your updated checklist.", {
@@ -379,3 +434,18 @@ def attach_to(request, state, file, document_type, user):
     summary = f"Import {len(accepted)} valid rows and send invitations? {len(rejected)} rows were rejected."
     reply, confirmation = _proposal(state, "import", {"people": [row["person"] for row in accepted]}, summary)
     return reply, {**data, "id": confirmation["id"], "summary": confirmation["summary"]}
+
+
+def reply_to(thread, state, turn, user):
+    """Free text goes to SmolLM; explicit UI and confirmation actions stay server-owned."""
+    if user["role"] == "super_admin":
+        from app.chat.customer_setup import respond
+        return respond(thread, state, turn, user)
+    confirmation = turn.text.lower().strip().rstrip(".!?")
+    if turn.action is None and confirmation not in {
+        "confirm", "yes", "yes, confirm", "cancel", "no", "never mind"
+    } and os.getenv("GGUF_MODEL_PATH", "").strip():
+        from app.chat.smollm_agent import run
+        return run(thread, state, turn, user)
+    result = _legacy_reply_to(thread, state, turn, user)
+    return result

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.core.auth import bootstrap, bootstrap_test_hr, current_user
+from app.core.auth import bootstrap, bootstrap_test_hr, bootstrap_super_admin, current_user
 from app.core.config import ROOT, MissingDatabaseConfiguration, Settings
 from app.core.middleware import RequestSecurity
 from app.extraction.pipeline import DocumentPipeline
@@ -40,8 +40,10 @@ def create_app():
             yield
             return
         initialize()
-        bootstrap()
+        if not os.getenv("SUPER_ADMIN_EMAIL") or os.getenv("BOOTSTRAP_PASSWORD"):
+            bootstrap()
         bootstrap_test_hr()
+        bootstrap_super_admin()
         app.state.pipeline = DocumentPipeline(settings)
         app.state.pipeline.ready()
         yield
@@ -81,9 +83,9 @@ def create_app():
         www_redirect=False,
     )
     app.add_middleware(RequestSecurity, settings=settings)
-    from app.api import auth, conversations, onboarding
+    from app.api import auth, conversations, onboarding, organizations
 
-    for router in (auth.router, onboarding.router, conversations.router):
+    for router in (auth.router, onboarding.router, conversations.router, organizations.router):
         app.include_router(router)
 
     @app.exception_handler(HTTPException)

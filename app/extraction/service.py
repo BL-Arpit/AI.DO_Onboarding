@@ -24,7 +24,7 @@ from app.extraction.documents.validators.passbook import (
     validate_ifsc,
 )
 from app.extraction.ocr.base import OCRProcessingError, OCRProvider
-from app.extraction.ocr.tesseract import TesseractOCRProvider
+from app.extraction.ocr.base import score_text
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,10 @@ class DocumentExtractionService:
     def __init__(self, ocr: OCRProvider | None = None) -> None:
         self.configuration_error = None
         try:
-            self.ocr = ocr if ocr is not None else TesseractOCRProvider()
+            if ocr is None:
+                from app.extraction.ocr.tesseract import TesseractOCRProvider
+                ocr = TesseractOCRProvider()
+            self.ocr = ocr
         except (FileNotFoundError, RuntimeError) as exc:
             self.ocr = None
             self.configuration_error = exc
@@ -124,7 +127,7 @@ class DocumentExtractionService:
             raise
         ocr_result = max(
             ocr_candidates,
-            key=lambda result: TesseractOCRProvider._score_text(result.text),
+            key=lambda result: score_text(result.text),
         )
         detection_text = "\n".join(result.text for result in ocr_candidates)
         detected = requested_type or self.identify_document(detection_text)
@@ -140,7 +143,7 @@ class DocumentExtractionService:
                 ocr_candidates.extend(candidate_method(file_path, detected))
                 ocr_result = max(
                     ocr_candidates,
-                    key=lambda result: TesseractOCRProvider._score_text(result.text),
+                    key=lambda result: score_text(result.text),
                 )
                 detection_text = "\n".join(result.text for result in ocr_candidates)
             except OCRProcessingError:

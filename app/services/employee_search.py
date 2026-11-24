@@ -13,6 +13,8 @@ from fastapi import HTTPException
 
 from app.repositories.database import connection
 
+from app.services.tenant_metadata import tenant_context
+
 log = logging.getLogger(__name__)
 
 _VECTOR_SIZE = 512
@@ -21,7 +23,7 @@ _DEFAULT_COLLECTION = "aido_employee_directory_v1"
 _DIRECTORY = """
     SELECT id, name, email, phone, client, track, status, version
     FROM employees
-    WHERE deleted_at IS NULL
+    WHERE tenant_id=? AND deleted_at IS NULL
 """
 _STOPWORDS = frozenset(
     "a all an and about details display employee employees fetch find for get give i in "
@@ -92,6 +94,9 @@ def _ensure_collection(client: httpx.Client, path: str) -> None:
         if response.status_code == 409:
             response = client.get(path)
     response.raise_for_status()
+    index=client.put(path + "/index",json={"field_name":"tenant_id","field_schema":"keyword"})
+    if index.status_code != 409:
+        index.raise_for_status()
 
 
 def _point_id(employee_id: str) -> str:
@@ -105,7 +110,7 @@ def _point(person: dict) -> dict:
     return {
         "id": _point_id(person["id"]),
         "vector": _vector(tokens),
-        "payload": {"employee_id": person["id"], "signature": _index_signature(person)},
+        "payload": {"employee_id": person["id"], "signature": _index_signature(person), "tenant_id":tenant_context.get()},
     }
 
 
@@ -117,7 +122,7 @@ def index_employee(employee_id: str) -> bool:
     client, path = settings
     try:
         with client, connection() as db:
-            row = db.execute(_DIRECTORY + " AND id=?", (employee_id,)).fetchone()
+            row = db.execute(_DIRECTORY + " AND id=?", (tenant_context.get(), employee_id)).fetchone()
             _ensure_collection(client, path)
             points = path + "/points"
             if row:
@@ -143,7 +148,7 @@ def reindex_employees() -> int:
     client, path = settings
     with client, connection() as db:
         _ensure_collection(client, path)
-        rows = db.execute(_DIRECTORY + " ORDER BY id")
+        rows = db.execute(_DIRECTORY + " ORDER BY id", (tenant_context.get(),))
         count = 0
         batch = []
         for row in rows:
@@ -169,6 +174,7 @@ def _read_index(tokens: list[str], limit: int) -> list[dict]:
                 path + "/points/query",
                 json={
                     "query": _vector(tokens),
+                    "filter":{"must":[{"key":"tenant_id","match":{"value":tenant_context.get()}}]},
                     "limit": limit,
                     "score_threshold": _MIN_SCORE,
                     "with_payload": ["employee_id", "signature"],
@@ -192,7 +198,7 @@ def exact_employee_matches(query: str, user: dict) -> list[dict]:
     with connection() as db:
         if "@" in value or re.fullmatch(r"[a-fA-F0-9]{24}", value):
             row = db.execute(
-                _DIRECTORY + " AND (id=? OR LOWER(email)=?)", (value.lower(), value.lower())
+                _DIRECTORY + " AND (id=? OR LOWER(email)=?)", (tenant_context.get(), value.lower(), value.lower())
             ).fetchone()
             if row:
                 return [dict(row)]
@@ -206,7 +212,7 @@ def _require_staff(user: dict) -> None:
 
 def _roster() -> list[dict]:
     with connection() as db:
-        return [dict(row) for row in db.execute(_DIRECTORY + " ORDER BY name, id")]
+        return [dict(row) for row in db.execute(_DIRECTORY + " ORDER BY name, id", (tenant_context.get(),))]
 
 
 def search_employees(query: str, user: dict, *, limit: int = 5) -> list[dict]:
@@ -234,7 +240,7 @@ def search_employees(query: str, user: dict, *, limit: int = 5) -> list[dict]:
             employee_id = payload.get("employee_id")
             if not isinstance(employee_id, str) or employee_id in seen:
                 continue
-            row = db.execute(_DIRECTORY + " AND id=?", (employee_id,)).fetchone()
+            row = db.execute(_DIRECTORY + " AND id=?", (tenant_context.get(), employee_id)).fetchone()
             if row and payload.get("signature") == _index_signature(dict(row)):
                 matches.append(dict(row))
                 seen.add(employee_id)

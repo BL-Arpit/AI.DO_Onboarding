@@ -30,33 +30,8 @@
     </section>
   </main>
   <div id="workspace" class="workspace" hidden>
-    <aside id="sidebar" class="sidebar" aria-label="Conversation history">
-      <div class="sidebar-header">
-        <span class="wordmark">AI.DO</span>
-        <button id="collapse-sidebar" type="button" class="icon-button" aria-label="Hide chat history">
-          <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#panel"></use></svg>
-        </button>
-      </div>
-      <button id="new-chat" class="new-chat" type="button" aria-keyshortcuts="Control+K Meta+K">
-        <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#plus"></use></svg>
-        New chat
-        <kbd aria-hidden="true" id="new-chat-keys">Ctrl K</kbd>
-      </button>
-      <div class="history-label" id="history-label">Your chats</div>
-      <nav id="history" aria-labelledby="history-label"></nav>
-      <div class="account">
-        <span class="avatar" id="avatar" aria-hidden="true"></span>
-        <div class="account-text"><strong id="account-name"></strong><span id="account-role"></span></div>
-        <button id="signout" type="button" class="icon-button" aria-label="Sign out">
-          <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#logout"></use></svg>
-        </button>
-      </div>
-    </aside>
     <main class="conversation">
       <header class="conversation-header">
-        <button id="expand-sidebar" type="button" class="icon-button" aria-label="Show chat history" aria-controls="sidebar" aria-expanded="false">
-          <svg aria-hidden="true"><use href="/assets/workspace-icons.svg#panel"></use></svg>
-        </button>
         <div class="agent-control">
           <button id="agent-toggle" class="agent-toggle" type="button" aria-expanded="false" aria-controls="agent-list">
             Onboarding Agent
@@ -69,6 +44,11 @@
               <svg aria-label="Active"><use href="/assets/workspace-icons.svg#check"></use></svg>
             </div>
           </div>
+        </div>
+        <div class="header-account">
+          <span class="avatar" id="avatar" aria-hidden="true"></span>
+          <div class="account-text"><strong id="account-name"></strong><span id="account-role"></span></div>
+          <button id="signout" type="button" class="icon-button" aria-label="Sign out"><svg aria-hidden="true"><use href="/assets/workspace-icons.svg#logout"></use></svg></button>
         </div>
       </header>
       <div id="stream" class="stream" tabindex="0" aria-label="Conversation">
@@ -110,6 +90,16 @@
         <input id="picker" type="file" hidden aria-label="Choose an onboarding attachment">
       </footer>
     </main>
+    <aside id="document-drawer" class="document-drawer" aria-labelledby="preview-title" hidden>
+      <div class="drawer-header">
+        <h2 id="preview-title">Document review</h2>
+        <button id="close-preview" type="button" class="icon-button" aria-label="Close document preview"><svg aria-hidden="true"><use href="/assets/workspace-icons.svg#close"></use></svg></button>
+      </div>
+      <div class="preview-pages"><button id="previous-page" type="button">Previous</button><span id="page-position">Page 1</span><button id="next-page" type="button">Next</button></div>
+      <p id="preview-status" role="status"></p>
+      <div class="document-image-wrap"><img id="document-image" alt="Uploaded employee document"></div>
+      <div id="review-fields"></div>
+    </aside>
   </div>
 </body>
 </html>

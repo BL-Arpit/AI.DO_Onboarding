@@ -10,12 +10,13 @@ from app.api.onboarding import permit
 from app.chat.onboarding_agent import Turn, attach_to, reply_to
 from app.core.auth import current_user, write_access
 from app.repositories import conversations
+from app.services.chat_memory import recall
 
 router = APIRouter(prefix="/api/conversations", tags=["Conversations"])
 
 
 def _require_access(user):
-    permit(user, "owner", "hr_admin", "employee")
+    permit(user, "super_admin", "owner", "hr_admin", "employee")
 
 
 def _storage(operation: Callable, *args):
@@ -43,10 +44,17 @@ def detail(thread_id: str, user=Depends(current_user)):
     return conversations.public(_storage(conversations.read, user["id"], thread_id))
 
 
+@router.get("/{thread_id}/older")
+def older(thread_id: str, before: int, user=Depends(current_user)):
+    _require_access(user)
+    return _storage(conversations.older,user["id"],thread_id,before)
+
+
 def _run_action(user_id, thread_id, text, action):
     thread = _storage(conversations.acquire, user_id, thread_id)
     state = deepcopy(thread["state"])
     try:
+        thread["recalled_messages"] = recall(thread, text)
         try:
             reply, data = action(thread, state)
         except ValidationError:

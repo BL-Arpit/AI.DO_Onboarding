@@ -1,6 +1,8 @@
+from app.services.tenant_metadata import document_requirements
 """Role-scoped onboarding commands and document submission."""
 
 import base64
+import json
 import logging
 import os
 import secrets
@@ -12,7 +14,7 @@ import httpx
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.auth import current_user, hasher, write_access
 from app.core.config import Settings
@@ -22,12 +24,15 @@ from pydantic import field_validator
 from app.services import employees
 from app.services.excel import export_excel, parse_excel
 from app.services.employee_search import index_employee
+from app.services.name_matching import compare_names, name_check
+from app.services.document_preview import render_document_page
 
 router = APIRouter(prefix="/api/onboarding")
 logger = logging.getLogger(__name__)
 
 
 class Contact(BaseModel):
+    version: int | None = Field(default=None,ge=1)
     name: str = Field(min_length=1, max_length=120)
     phone: str = Field(min_length=8, max_length=30)
     _clean_name = field_validator("name")(lambda value: EmployeeInput.name_clean(value))
@@ -39,6 +44,20 @@ class Admin(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     _clean_name = field_validator("name")(lambda value: EmployeeInput.name_clean(value))
     _clean_email = field_validator("email")(lambda value: EmployeeInput.email_clean(value))
+
+
+class FieldRevision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: int = Field(ge=1)
+    fields: dict[str, dict[str, str | None]] = Field(min_length=1, max_length=8)
+
+
+class NameReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: int = Field(ge=1)
+    document_type: str = Field(min_length=1, max_length=40)
+    decision: str = Field(pattern="^(accepted|rejected)$")
+    reason: str = Field(min_length=5, max_length=1000)
 
 
 class ImportRows(BaseModel):
@@ -137,20 +156,20 @@ def send_invite(config, address, password):
         return False
 
 
-def create_account(db, name, email, role, password):
+def create_account(db, name, email, role, password, tenant_id="default"):
     if db.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
         raise HTTPException(409, "An account already exists for that email.")
     uid = secrets.token_hex(16)
     db.execute(
-        "INSERT INTO users(id,email,name,role,password,must_change,temp_expires) VALUES(?,?,?,?,?,1,?)",
-        (uid, email, name, role, hasher.hash(password), time.time() + 86400),
+        "INSERT INTO users(id,email,name,role,password,must_change,temp_expires,tenant_id) VALUES(?,?,?,?,?,1,?,?)",
+        (uid, email, name, role, hasher.hash(password), time.time() + 86400, tenant_id),
     )
     return uid
 
 
 def register(db, person, user):
     password = secrets.token_urlsafe(21)
-    uid = create_account(db, person.name, person.email, "employee", password)
+    uid = create_account(db, person.name, person.email, "employee", password, user.get("tenant_id","default"))
     record = employees.create_employee(db, person.model_dump(), user)
     db.execute("UPDATE employees SET user_id=? WHERE id=?", (uid, record["id"]))
     return record["id"], person.email, password
@@ -173,17 +192,42 @@ def appoint(body: Admin, user=Depends(write_access)):
         db.execute("BEGIN IMMEDIATE")
         existing = db.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         if existing:
-            if existing["role"] != "hr_admin" or not existing["must_change"]:
+            if existing["tenant_id"] != user.get("tenant_id","default") or existing["role"] != "hr_admin" or not existing["must_change"]:
                 raise HTTPException(409, "This email already has an active account.")
             db.execute(
-                "UPDATE users SET password=?,temp_expires=? WHERE id=?",
-                (hasher.hash(password), time.time() + 86400, existing["id"]),
+                "UPDATE users SET name=?,password=?,temp_expires=? WHERE id=?",
+                (name, hasher.hash(password), time.time() + 86400, existing["id"]),
             )
             db.execute("DELETE FROM auth_sessions WHERE user_id=?", (existing["id"],))
         else:
-            create_account(db, name, email, "hr_admin", password)
+            create_account(db, name, email, "hr_admin", password, user.get("tenant_id","default"))
         audit(db, None, user["id"], "hr_invited")
     return {"invitations": deliver(config, [(None, email, password)])}
+
+
+@router.get("/admins")
+def list_admins(q: str = "", user=Depends(current_user)):
+    """Owner-only directory. Passwords and session secrets never leave SQL."""
+    permit(user, "owner")
+    query = " ".join(q.casefold().split())
+    if len(query) > 254:
+        raise HTTPException(422, "Search must be at most 254 characters.")
+    with connection() as db:
+        rows = db.execute(
+            "SELECT id,name,email,must_change,disabled,temp_expires FROM users "
+            "WHERE role='hr_admin' AND tenant_id=? ORDER BY name,email", (user.get("tenant_id","default"),)
+        ).fetchall()
+    result = []
+    for row in rows:
+        if query and query not in " ".join(row["name"].casefold().split()) and query not in row["email"].casefold():
+            continue
+        status = "disabled" if row["disabled"] else (
+            "invitation_expired" if row["must_change"] and row["temp_expires"]
+            and row["temp_expires"] < time.time() else
+            "password_change_required" if row["must_change"] else "active"
+        )
+        result.append({"id": row["id"], "name": row["name"], "email": row["email"], "status": status})
+    return {"admins": result}
 
 
 @router.post("/employees")
@@ -206,7 +250,8 @@ def preview(request: Request, file: UploadFile = File(...), user=Depends(write_a
     if len(content) > limit:
         raise HTTPException(413, "Workbook exceeds upload limit.")
     try:
-        return parse_excel(content, file.filename or "")
+        from app.services.tenant_metadata import configuration
+        return parse_excel(content, file.filename or "", schema_fields=configuration(user["tenant_id"])["fields"])
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -241,7 +286,7 @@ def resend(eid: str, user=Depends(write_access)):
             )
             db.execute("DELETE FROM auth_sessions WHERE user_id=?", (account["id"],))
         else:
-            uid = create_account(db, person["name"], person["email"], "employee", password)
+            uid = create_account(db, person["name"], person["email"], "employee", password, user.get("tenant_id","default"))
             db.execute("UPDATE employees SET user_id=?,version=version+1 WHERE id=?", (uid, eid))
         audit(db, eid, user["id"], "invitation_resent")
     return {"invitations": deliver(config, [(eid, person["email"], password)])}
@@ -275,13 +320,110 @@ def name_checks(person):
     checks = []
     docs = {doc["kind"]: doc for doc in person["documents"]}
     for kind in person["workflow"]["government_types"]:
-        name = docs[kind]["extraction"]["extracted_data"].get("name")
-        expected = name_key(person["name"])
-        result = "unreadable"
-        if name and name_key(name):
-            result = "match" if name_key(name) == expected else "mismatch"
-        checks.append({"type": kind, "name": name, "result": result})
+        doc = docs[kind]
+        name = (doc.get("extraction", {}).get("extracted_data") or {}).get("name")
+        check = name_check(person["name"], name)
+        for event in reversed(person.get("audit", [])):
+            if event["action"] != "name_reviewed":
+                continue
+            try:
+                review = json.loads(event["details"])
+            except (ValueError, TypeError):
+                continue
+            if review.get("document_id") == doc["id"] and review.get("expected_name") == person["name"] and review.get("extracted_name") == name:
+                check["review"] = review
+                if review["decision"] == "accepted" and check["reason"] == "middle_name_difference":
+                    check.update(result="match", review_required=False, reason="middle_name_reviewed")
+                break
+        checks.append({"type": kind, "name": name, "expected_name": person["name"], **check})
     return checks
+
+
+def revisions(person):
+    result = []
+    for event in person.get("audit", []):
+        if event["action"] not in {"fields_revised", "profile_revised", "name_reviewed"}:
+            continue
+        try:
+            detail = json.loads(event["details"])
+        except (ValueError, TypeError):
+            continue
+        result.append({"id": event["id"], "created": event["created"], "actor": event["actor"], "action": event["action"], **detail})
+    return result
+
+
+@router.get("/employees/{eid}/revisions")
+def employee_revisions(eid: str, user=Depends(current_user)):
+    staff(user)
+    with connection() as db:
+        person = employees.get_employee(db, eid)
+    return revisions(person)
+
+
+@router.get("/me/revisions")
+def own_revisions(user=Depends(current_user)):
+    permit(user, "employee")
+    with connection() as db:
+        return revisions(own(db, user))
+
+
+@router.post("/employees/{eid}/fields")
+def revise_fields(eid: str, body: FieldRevision, user=Depends(write_access)):
+    permit(user,"employee","owner","hr_admin")
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        person = employees.get_employee(db, eid)
+        if user["role"] == "employee" and person["user_id"] != user["id"]:
+            raise HTTPException(404,"Employee unavailable.")
+        if person["version"] != body.version:
+            raise HTTPException(409, "The record changed. Refresh and review your edits.")
+        if person["status"] not in {"draft", "submitted"}:
+            raise HTTPException(409, "Reopen the employee record before editing fields.")
+        fields = {kind: dict(values) for kind, values in person["fields"].items()}
+        changes = []
+        for kind, values in body.fields.items():
+            if kind not in fields or set(values) - set(fields[kind]):
+                raise HTTPException(422, "Only fields from uploaded documents can be revised.")
+            for key, value in values.items():
+                if key == "additional_fields" or (value is not None and len(value) > 2000):
+                    raise HTTPException(422, "This field cannot be revised here.")
+                before = fields[kind].get(key)
+                if before != value:
+                    changes.append({"document_type": kind, "field": key, "before": before, "after": value})
+                    fields[kind][key] = value
+        if not changes:
+            return {**person, "name_checks": name_checks(person), "revisions": revisions(person)}
+        status = "draft" if user["role"] == "employee" else person["status"]
+        db.execute("UPDATE employees SET fields=?,status=?,verification='{}',version=version+1 WHERE id=?", (json.dumps(fields),status,eid))
+        audit(db, eid, user["id"], "fields_revised", json.dumps({"changes": changes,"before":{kind:person["fields"][kind] for kind in body.fields},"after":{kind:fields[kind] for kind in body.fields}}))
+        updated = employees.get_employee(db, eid)
+    index_employee(eid)
+    return {**updated, "name_checks": name_checks(updated), "revisions": revisions(updated)}
+
+
+@router.post("/employees/{eid}/name-review")
+def review_name(eid: str, body: NameReview, user=Depends(write_access)):
+    staff(user)
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        person = employees.get_employee(db, eid)
+        if person["version"] != body.version:
+            raise HTTPException(409, "The record changed. Refresh before recording your decision.")
+        if person["status"] not in {"draft", "submitted"}:
+            raise HTTPException(409, "This record is not open for review.")
+        check = next((item for item in name_checks(person) if item["type"] == body.document_type), None)
+        if not check or check["reason"] not in {"middle_name_difference", "middle_name_reviewed"}:
+            raise HTTPException(422, "Correct the name fields for this discrepancy.")
+        document = next(doc for doc in reversed(person["documents"]) if doc["kind"] == body.document_type)
+        review = {
+            "document_type": body.document_type, "document_id": document["id"],
+            "expected_name": person["name"], "extracted_name": check["name"],
+            "decision": body.decision, "reason": body.reason,
+        }
+        audit(db, eid, user["id"], "name_reviewed", json.dumps(review))
+        db.execute("UPDATE employees SET version=version+1 WHERE id=?", (eid,))
+        updated = employees.get_employee(db, eid)
+    return {**updated, "name_checks": name_checks(updated), "revisions": revisions(updated)}
 
 
 @router.get("/employees/{eid}")
@@ -289,7 +431,7 @@ def detail(eid: str, user=Depends(current_user)):
     staff(user)
     with connection() as db:
         person = employees.get_employee(db, eid)
-    return {**person, "name_checks": name_checks(person)}
+    return {**person, "name_checks": name_checks(person), "revisions": revisions(person)}
 
 
 def staff_edit(eid: str, body: UpdateEmployee, user):
@@ -319,7 +461,8 @@ def staff_edit(eid: str, body: UpdateEmployee, user):
 def profile(user=Depends(current_user)):
     permit(user, "employee")
     with connection() as db:
-        return own(db, user)
+        person = own(db, user)
+        return {**person, "name_checks": name_checks(person), "revisions": revisions(person)}
 
 
 @router.put("/me")
@@ -328,14 +471,23 @@ def edit(body: Contact, user=Depends(write_access)):
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         person = own(db, user)
+        if body.version is not None and body.version != person["version"]:
+            raise HTTPException(409,"The form changed. Refresh before editing.")
         if person["status"] == "onboarded":
+            if body.name != person["name"]:
+                raise HTTPException(422, "After onboarding, you can only update your phone number.")
             phone = body.phone
             db.execute("UPDATE employees SET phone=?,version=version+1 WHERE id=?", (phone, person["id"]))
             audit(db, person["id"], user["id"], "phone_updated")
             updated = own(db, user)
         else:
-            updated = employees.update_employee(db, person["id"], person["version"], body.model_dump(), user)
+            if person["status"] == "submitted":
+                db.execute("UPDATE employees SET status='draft' WHERE id=?", (person["id"],))
+            updated = employees.update_employee(db, person["id"], person["version"], body.model_dump(include={"name","phone"}), user)
             db.execute("UPDATE users SET name=? WHERE id=?", (updated["name"], user["id"]))
+        changes = [{"field": k, "before": person[k], "after": updated[k]} for k in ("name", "phone") if person[k] != updated[k]]
+        if changes:
+            audit(db, person["id"], user["id"], "profile_revised", json.dumps({"changes": changes, "before": {k:person[k] for k in ("name","email","phone")}, "after": {k:updated[k] for k in ("name","email","phone")}}))
     index_employee(person["id"])
     return updated
 
@@ -358,22 +510,26 @@ def document(request: Request, file: UploadFile = File(...), document_type: str 
         updated = employees.save_document(db, latest["id"], person["version"], result, user)
         doc_id = updated["documents"][-1]["id"]
         db.execute("INSERT INTO document_uploads VALUES(?,?)", (doc_id, data))
-        return updated
+        return {**updated, "name_checks": name_checks(updated)}
 
 
-@router.get("/documents/{doc_id}")
-def download_document(doc_id: str, user=Depends(current_user)):
+def stored_document(doc_id, user):
     permit(user, "owner", "hr_admin", "employee")
     with connection() as db:
         row = db.execute(
             """SELECT u.content, e.user_id FROM document_uploads u JOIN documents d ON d.id=u.doc_id
-               JOIN employees e ON e.id=d.employee_id WHERE d.id=? AND e.deleted_at IS NULL""",
-            (doc_id,),
+               JOIN employees e ON e.id=d.employee_id WHERE d.id=? AND e.tenant_id=? AND e.deleted_at IS NULL""",
+            (doc_id,user.get("tenant_id","default")),
         ).fetchone()
         if not row or (user["role"] == "employee" and row["user_id"] != user["id"]):
             raise HTTPException(404, "Document unavailable.")
-    return Response(row["content"], media_type="application/octet-stream",
-                    headers={"Content-Disposition": 'attachment; filename="document"' })
+        return bytes(row["content"])
+
+
+@router.get("/documents/{doc_id}/preview")
+def preview_document(doc_id: str, page: int = 1, user=Depends(current_user)):
+    image, count = render_document_page(stored_document(doc_id, user), page)
+    return Response(image, media_type="image/png", headers={"X-Page-Count": str(count), "Cache-Control": "no-store"})
 
 
 @router.post("/me/submit")
@@ -384,8 +540,8 @@ def submit(body: VersionInput, user=Depends(write_access)):
         person = own(db, user)
         employees.check_version(person, body.version)
         flow = person["workflow"]
-        if len(flow["government_types"]) < 2 or not flow["bank_types"]:
-            raise HTTPException(422, "Upload two distinct government documents and one bank document.")
+        if len(flow["government_types"]) < flow["minimum_government"] or len(flow["bank_types"]) < flow["minimum_bank"]:
+            raise HTTPException(422, "Complete the government and bank document requirements shown in your checklist.")
         db.execute("UPDATE employees SET status='submitted',version=version+1 WHERE id=?", (person["id"],))
         audit(db, person["id"], user["id"], "submitted")
         updated = own(db, user)
@@ -412,7 +568,7 @@ def decision(eid: str, action: str, body: VersionInput, user=Depends(write_acces
         else:
             if action == "onboard":
                 checks = name_checks(person)
-                if len(checks) < 2 or not any(c["result"] == "match" for c in checks) or any(c["result"] == "mismatch" for c in checks):
+                if not document_requirements(person) or (person["workflow"]["minimum_government"] and not any(c["result"] == "match" for c in checks)) or any(c["result"] == "mismatch" for c in checks):
                     raise HTTPException(422, "Onboarding requires one readable matching government name and no mismatches. Request correction.")
             status = "onboarded" if action == "onboard" else "draft"
             db.execute("UPDATE employees SET status=?,version=version+1 WHERE id=?", (status, eid))

@@ -3,14 +3,15 @@
 const get = (id) => document.getElementById(id);
 const elements = Object.fromEntries([
   "access", "access-title", "access-description", "access-status", "login-form", "password-form",
-  "setup-signout", "workspace", "sidebar", "expand-sidebar", "collapse-sidebar", "new-chat",
-  "new-chat-keys", "history", "avatar", "account-name", "account-role", "signout", "agent-toggle",
+  "setup-signout", "workspace", "avatar", "account-name", "account-role", "signout", "agent-toggle",
   "agent-list", "stream", "welcome", "suggestions", "messages", "chat-status", "pending-file",
   "file-name", "file-caption", "document-label", "document-type", "upload-file", "remove-file",
   "composer", "action-toggle", "actions", "action-items", "prompt", "send", "picker",
+  "document-drawer", "preview-title", "close-preview", "previous-page", "next-page", "page-position",
+  "preview-status", "document-image", "review-fields",
 ].map((id) => [id, get(id)]));
 
-const roles = { owner: "Owner", hr_admin: "HR Admin", employee: "Employee" };
+const roles = { super_admin: "Forward engineer", owner: "Owner", hr_admin: "HR Admin", employee: "Employee" };
 const statusLabels = {
   draft: "Draft", submitted: "Submitted", onboarded: "Onboarded", offboarded: "Offboarded",
 };
@@ -20,7 +21,10 @@ const documentTypes = {
 const narrow = window.matchMedia("(max-width: 680px)");
 let session = null;
 let activeThread = null;
-let threads = [];
+let customerFields = [];
+let preview = null;
+let previewUrl = null;
+let previewSequence = 0;
 let pendingFile = null;
 let busy = false;
 
@@ -78,7 +82,7 @@ function updateControls() {
   elements["remove-file"].disabled = busy;
   elements["document-type"].disabled = busy;
   elements.prompt.readOnly = busy;
-  for (const id of ["new-chat", "action-toggle", "signout", "setup-signout"]) {
+  for (const id of ["action-toggle", "signout", "setup-signout"]) {
     elements[id].disabled = busy;
   }
   for (const form of [elements["login-form"], elements["password-form"]]) {
@@ -112,9 +116,9 @@ async function perform(task, waiting = "") {
 function clearSession() {
   session = null;
   activeThread = null;
-  threads = [];
+  closePreview();
   clearFile();
-  elements.history.replaceChildren();
+
   elements.messages.replaceChildren();
   elements.prompt.value = "";
   elements["account-name"].textContent = "";
@@ -153,15 +157,13 @@ async function openSession(details) {
   elements.avatar.textContent = name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   elements.access.hidden = true;
   elements.workspace.hidden = false;
-  setSidebar(!narrow.matches);
+
+  customerFields = (await api("/api/organizations/current")).fields || [];
   buildActions();
   renderThread();
-  await refreshHistory();
-}
-
-function setSidebar(open) {
-  elements.workspace.classList.toggle("sidebar-closed", !open);
-  elements["expand-sidebar"].setAttribute("aria-expanded", String(open));
+  const result = await api("/api/conversations");
+  const saved = Array.isArray(result) ? result : result.conversations || result.threads || [];
+  if (saved.length) setActive(await api("/api/conversations/" + encodeURIComponent(saved[0].id)));
 }
 
 function togglePopover(toggleId, panelId, open) {
@@ -174,53 +176,9 @@ function closePopovers() {
   togglePopover("action-toggle", "actions", false);
 }
 
-function renderHistory() {
-  const history = elements.history;
-  history.replaceChildren();
-  if (!threads.length) {
-    history.append(node("p", "Your conversations will appear here.", "history-empty"));
-  }
-  for (const thread of threads) {
-    const item = button(thread.title, () => perform(async () => {
-      if (thread.id === activeThread?.id) {
-        if (narrow.matches) setSidebar(false);
-        return;
-      }
-      const selected = await api("/api/conversations/" + encodeURIComponent(thread.id));
-      clearFile();
-      setActive(selected);
-      if (narrow.matches) setSidebar(false);
-    }, "Opening chat…"), "history-item");
-    item.title = thread.title;
-    if (activeThread?.id === thread.id) item.setAttribute("aria-current", "page");
-    history.append(item);
-  }
-}
-
-async function refreshHistory() {
-  const result = await api("/api/conversations");
-  threads = Array.isArray(result) ? result : result.conversations || result.threads || [];
-  renderHistory();
-}
-
 function setActive(thread) {
   activeThread = thread.conversation || thread.thread || thread;
-  const { id, title, updated_at } = activeThread;
-  threads = [{ id, title, updated_at }, ...threads.filter((item) => item.id !== id)]
-    .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
-  renderHistory();
   renderThread();
-}
-
-function newChat() {
-  if (busy || !session) return;
-  activeThread = null;
-  clearFile();
-  status();
-  renderHistory();
-  renderThread();
-  if (narrow.matches) setSidebar(false);
-  elements.prompt.focus();
 }
 
 async function ensureThread() {
@@ -239,34 +197,145 @@ function writeFields(parent, fields) {
   if (list.childElementCount) parent.append(list);
 }
 
-function extractionPanel(section, record) {
-  if (!/^[a-f0-9]{24}$/i.test(record.id || "")) return;
-  const preview = node("div", undefined, "extraction-preview");
-  const show = button("Review extracted fields", () => perform(async () => {
-    if (preview.childElementCount) {
-      preview.replaceChildren();
-      show.textContent = "Review extracted fields";
-      show.setAttribute("aria-expanded", "false");
-      return;
+function closePreview() {
+  previewSequence += 1;
+  preview = null;
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = null;
+  elements["document-image"].removeAttribute("src");
+  elements["document-drawer"].hidden = true;
+  elements.workspace.classList.remove("review-open");
+  elements["review-fields"].replaceChildren();
+}
+
+async function loadPreviewPage(page) {
+  if (!preview) return;
+  const sequence = ++previewSequence;
+  const id = preview.document.id;
+  elements["preview-status"].textContent = "Loading preview…";
+  const response = await fetch("/api/onboarding/documents/" + encodeURIComponent(id) + "/preview?page=" + page, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || "Document preview unavailable.");
+  }
+  const image = await response.blob();
+  if (!preview || sequence !== previewSequence) return;
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = URL.createObjectURL(image);
+  elements["document-image"].src = previewUrl;
+  elements["document-image"].alt = (documentTypes[preview.document.kind] || preview.document.kind) + " page " + page;
+  preview.page = page;
+  preview.pages = Number(response.headers.get("X-Page-Count")) || 1;
+  elements["page-position"].textContent = "Page " + page + " of " + preview.pages;
+  elements["previous-page"].disabled = page <= 1;
+  elements["next-page"].disabled = page >= preview.pages;
+  elements["preview-status"].textContent = "";
+}
+
+function renderReviewFields(person, document) {
+  const target = elements["review-fields"];
+  target.replaceChildren();
+  const original = document.extraction?.extracted_data || {};
+  const latest = person.documents.filter(d => d.kind === document.kind).at(-1)?.id === document.id;
+  const values = latest ? (person.fields?.[document.kind] || original) : original;
+  const editable = ["draft","submitted"].includes(person.status) && (person.documents || []).filter(d => d.kind === document.kind).at(-1)?.id === document.id;
+  const form = node("form", undefined, "review-form");
+  form.append(node("h3", "Extracted fields"));
+  for (const [name, value] of Object.entries(values)) {
+    if (value !== null && !["string", "number", "boolean"].includes(typeof value)) continue;
+    const label = node("label", name.replaceAll("_", " "));
+    const input = node("input");
+    input.name = name;
+    input.value = value ?? "";
+    input.disabled = !editable;
+    label.append(node("small", "OCR · " + (original[name] ?? "Blank")), input);
+    form.append(label);
+  }
+  const feedback = node("p", "", "review-feedback");
+  feedback.setAttribute("role", "status");
+  if (editable && form.querySelector("input")) {
+    const save = node("button", "Save reviewed fields", "primary");
+    save.type = "submit";
+    form.append(save);
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (busy) return;
+      await perform(async () => {
+        const fields = Object.fromEntries(new FormData(form));
+        const result = await api("/api/onboarding/employees/" + encodeURIComponent(person.id) + "/fields", {
+          method: "POST", body: {version: person.version, fields: {[document.kind]: fields}},
+        });
+        if (!preview || preview.person.id !== person.id) return;
+        preview.person = result;
+        renderReviewFields(result, result.documents.find(item => item.id === document.id) || document);
+        elements["preview-status"].textContent = "Reviewed fields saved.";
+      }, "Saving reviewed fields…");
+    });
+  }
+  form.append(feedback);
+  target.append(form);
+  for (const revision of person.revisions || []) {
+    const changes = (revision.changes || []).filter(change => !change.document_type || change.document_type === document.kind);
+    if (!changes.length) continue;
+    const table = node("table", undefined, "revision-table");
+    const heading = table.insertRow();
+    for (const label of ["Field", "Before edit", "After edit"]) heading.append(node("th", label));
+    const before = revision.action === "fields_revised" ? revision.before?.[document.kind] : revision.before;
+    const after = revision.action === "fields_revised" ? revision.after?.[document.kind] : revision.after;
+    const comparison = before && after ? Object.keys({...before,...after}).filter(key => typeof before[key] !== "object" || before[key] === null)
+      .map(field => ({field,before:before[field],after:after[field]})) : changes;
+    for (const change of comparison) {
+      const row = table.insertRow();
+      if (change.before !== change.after) row.className = "revised-value";
+      for (const value of [change.field, change.before, change.after]) row.append(node("td", value ?? "—"));
     }
-    const path = "/api/onboarding/employees/" + encodeURIComponent(record.id);
-    const detail = await api(path);
-    for (const document of detail.documents || []) {
-      const values = Object.entries(document.extraction?.extracted_data || {})
-        .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
-        .map(([field, value]) => [field.replaceAll("_", " "), value]);
-      const group = node("details");
-      group.append(node("summary", documentTypes[document.kind] || document.kind));
-      if (values.length) writeFields(group, values);
-      else group.append(node("p", "No extracted fields available."));
-      preview.append(group);
+    target.append(node("h3", "Review changes"), table, node("p","Compare the edited values with the original document before approving."));
+  }
+  const check = (person.name_checks || []).find(item => item.type === document.kind);
+  if (check) {
+    const block = node("section", undefined, "name-review");
+    block.append(node("h3", "Name verification"), node("p", check.result));
+    if (check.reason) block.append(node("p", check.reason));
+    if (check.prompt) block.append(node("p", check.prompt));
+    if (editable && session.user.role !== "employee" && check.reason === "middle_name_difference") {
+      const reason = node("textarea");
+      reason.placeholder = "Reason for your decision";
+      reason.setAttribute("aria-label", "Name review reason");
+      block.append(reason);
+      for (const [label, decision] of [["Accept name", "accepted"], ["Request correction", "rejected"]]) {
+        block.append(button(label, () => perform(async () => {
+          if (!reason.value.trim()) throw new Error("Enter a reason for the name review.");
+          const result = await api("/api/onboarding/employees/" + encodeURIComponent(person.id) + "/name-review", {
+            method: "POST", body: {version: person.version, document_type: document.kind, decision, reason: reason.value.trim()},
+          });
+          if (!preview || preview.person.id !== person.id) return;
+          preview.person = result;
+          renderReviewFields(result, document);
+        }), "inline-action"));
+      }
     }
-    if (!preview.childElementCount) preview.append(node("p", "No documents have been uploaded."));
-    show.textContent = "Hide extracted fields";
-    show.setAttribute("aria-expanded", "true");
-  }, "Loading extracted fields…"));
-  show.setAttribute("aria-expanded", "false");
-  section.append(show, preview);
+    target.append(block);
+  }
+}
+
+function openDocument(person, document) {
+  return perform(() => showDocument(person,document), "Opening document…");
+}
+
+async function showDocument(person, document) {
+    closePreview();
+    const record = session.user.role === "employee"
+      ? await api("/api/onboarding/me")
+      : await api("/api/onboarding/employees/" + encodeURIComponent(person.id));
+    preview = {person: record, document: (record.documents || []).find(item => item.id === document.id) || document, page: 1, pages: 1};
+    elements["preview-title"].textContent = documentTypes[document.kind] || document.kind;
+    elements["document-drawer"].hidden = false;
+    elements.workspace.classList.add("review-open");
+    renderReviewFields(record, preview.document);
+    await loadPreviewPage(1);
+    elements["close-preview"].focus();
 }
 
 function personCard(parent, record, full) {
@@ -280,23 +349,21 @@ function personCard(parent, record, full) {
   if (full && record.workflow) {
     const government = (record.workflow.government_types || []).length;
     const bank = (record.workflow.bank_types || []).length;
-    section.append(node("p", `Document checklist · ${government}/2 government · ${bank}/1 bank`));
+    section.append(node("p", `Document checklist · ${government}/${record.workflow.minimum_government} government · ${bank}/${record.workflow.minimum_bank} bank`));
   }
   if (full) {
     for (const document of record.documents || []) {
       if (!/^[a-f0-9-]{1,64}$/i.test(document.id || "")) continue;
       const label = documentTypes[document.kind] || document.kind;
-      const link = node("a", label);
-      link.href = "/api/onboarding/documents/" + encodeURIComponent(document.id);
       const line = node("p");
-      line.append(link);
+      line.append(button("Review " + label, () => openDocument(record, document)));
       if (document.extraction?.status) line.append(" · " + document.extraction.status);
       section.append(line);
     }
     for (const check of record.name_checks || []) {
       section.append(node("p", `${documentTypes[check.type] || check.type} · ${check.result}`));
     }
-    if (session.user.role !== "employee") extractionPanel(section, record);
+
   } else if (record.email && session.user.role !== "employee") {
     section.append(button("Open record", () => sendTurn("Show " + record.email, { action: "status" })));
   }
@@ -333,6 +400,16 @@ function renderDraft(container, data, active) {
     }
     form.append(field);
   }
+  const custom = customerFields.filter(f => !["name","email","phone","track","client"].includes(f.key));
+  for (const spec of custom) {
+    const label = node("label",spec.label,"draft-field");
+    const input = node("input");
+    input.type = ({number:"number",date:"date",boolean:"checkbox"})[spec.type] || "text";
+    input.name = "meta." + spec.key;
+    input.required = spec.required && input.type !== "checkbox";
+    input.disabled = !active;
+    label.append(input); form.append(label);
+  }
   if (active) {
     const controls = node("div", undefined, "draft-controls");
     const confirm = node("button", "Review invitation", "primary");
@@ -341,8 +418,15 @@ function renderDraft(container, data, active) {
     form.append(controls);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
+      const values = Object.fromEntries(new FormData(form));
+      const metadata = {};
+      for (const spec of custom) {
+        const key = "meta." + spec.key, value = values[key]; delete values[key];
+        if (spec.type === "boolean") metadata[spec.key] = Boolean(value);
+        else if (value) metadata[spec.key] = spec.type === "number" ? Number(value) : value;
+      }
       sendTurn("Review employee details", {
-        action: "add", draft_id: data.id, fields: Object.fromEntries(new FormData(form)),
+        action: "add", draft_id: data.id, fields: {...values, metadata},
       });
     });
   }
@@ -368,6 +452,21 @@ function renderResult(data, index) {
     ? Boolean(data.id && data.id === activeThread[stateKey] && index === latest)
     : index === activeThread.messages.length - 1;
   switch (data.type) {
+    case "setup":
+      if (activeThread.active_setup !== data.id || latest !== index) return null;
+      renderSetup(container, data);
+      break;
+    case "hr_admins":
+      container.append(node("h3", "HR team"));
+      for (const admin of data.admins || []) {
+        const section = node("section", undefined, "person");
+        section.append(node("h3", admin.name || "HR admin"));
+        const labels = {active: "Active", disabled: "Disabled", invitation_expired: "Invitation expired", password_change_required: "Needs password change"};
+        writeFields(section, [["Email", admin.email], ["Status", labels[admin.status] || admin.status]]);
+        container.append(section);
+      }
+      if (!(data.admins || []).length) container.append(node("p", "No HR accounts found."));
+      break;
     case "employee_draft":
       renderDraft(container, data, active);
       break;
@@ -415,6 +514,11 @@ function renderThread() {
   list.replaceChildren();
   list.hidden = !messages.length;
   elements.welcome.hidden = Boolean(messages.length);
+  if (activeThread?.offset > 0) list.append(button("Earlier messages", () => perform(async () => {
+    const page = await api("/api/conversations/" + activeThread.id + "/older?before=" + activeThread.offset);
+    activeThread.messages.unshift(...page.messages); activeThread.offset = page.offset;
+    renderThread(); elements.stream.scrollTop = 0;
+  })));
   messages.forEach((message, index) => {
     const mine = message.role === "user";
     const turn = node("article", undefined, "turn " + (mine ? "user" : "assistant"));
@@ -450,7 +554,7 @@ function buildActions() {
   plus.replaceChildren();
   suggestions.replaceChildren();
   const employee = session.user.role === "employee";
-  const actions = employee ? [
+  const actions = session.user.role === "super_admin" ? [["Configure customer", "profile", () => sendTurn("Configure customer")], ["Use customer workbook", "sheet", chooseFile], ["Edit organization", "profile", selectOrganization]] : employee ? [
     ["Upload document", "paperclip", chooseFile],
     ["My onboarding checklist", "profile", () => sendTurn("My checklist", { action: "profile" })],
     ["Submit for review", "check", () => sendTurn("Submit for review", { action: "submit" })],
@@ -462,6 +566,7 @@ function buildActions() {
     ["Export master Excel", "download", () => sendTurn("Export master Excel", { action: "export" })],
   ];
   if (session.user.role === "owner") {
+    actions.push(["HR team", "profile", () => sendTurn("Show HR list", { action: "hr_list" })]);
     actions.push(["Appoint HR admin", "profile", () => sendTurn("Appoint HR", { action: "appoint" })]);
   }
   for (const [label, glyph, handler] of actions) {
@@ -472,7 +577,7 @@ function buildActions() {
     item.prepend(icon(glyph));
     plus.append(item);
   }
-  for (const label of employee ? ["My checklist", "Upload document"] : ["Add employee", "Show submissions", "Review documents"]) {
+  for (const label of session.user.role === "super_admin" ? ["Configure customer"] : employee ? ["My checklist", "Upload document"] : ["Add employee", "Show submissions", "Review documents"]) {
     suggestions.append(button(label, () => sendTurn(label), "suggestion"));
   }
 }
@@ -525,6 +630,9 @@ function uploadFile() {
     });
     setActive(result);
     clearFile();
+    const record = activeThread.messages.at(-1)?.data?.profile;
+    if (session.user.role === "employee" && record?.documents?.length)
+      await showDocument(record,record.documents.at(-1));
   }, "Processing your attachment…");
 }
 
@@ -579,15 +687,16 @@ elements.prompt.addEventListener("keydown", (event) => {
     elements.composer.requestSubmit();
   }
 });
-elements["new-chat"].addEventListener("click", newChat);
-elements["expand-sidebar"].addEventListener("click", () => setSidebar(true));
-elements["collapse-sidebar"].addEventListener("click", () => setSidebar(false));
+elements["close-preview"].addEventListener("click", closePreview);
+elements["previous-page"].addEventListener("click", () => perform(() => loadPreviewPage(preview.page - 1)));
+elements["next-page"].addEventListener("click", () => perform(() => loadPreviewPage(preview.page + 1)));
 elements["agent-toggle"].addEventListener("click", () => {
   const open = elements["agent-list"].hidden;
   closePopovers();
   togglePopover("agent-toggle", "agent-list", open);
 });
 elements["action-toggle"].addEventListener("click", () => {
+  buildActions();
   const open = elements.actions.hidden;
   closePopovers();
   togglePopover("action-toggle", "actions", open);
@@ -622,14 +731,8 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closePopovers();
-  if (session && !elements.workspace.hidden && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-    event.preventDefault();
-    newChat();
-  }
+  if (event.key === "Escape" && preview) closePreview();
 });
-narrow.addEventListener("change", () => setSidebar(!narrow.matches));
-
-elements["new-chat-keys"].textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘ K" : "Ctrl K";
 
 perform(async () => {
   try {
@@ -643,3 +746,75 @@ perform(async () => {
     throw error;
   }
 }, "Checking your session…");
+
+function renderSetup(container, data) {
+  const form = node("form", undefined, "employee-draft");
+  const schema = structuredClone(data.schema);
+  form.append(node("h3", "Customer onboarding setup"), node("p", schema.fields.map(f => f.label).join(" · ")));
+  if (data.organization) form.append(node("p", data.organization.name + " · version " + data.organization.version));
+  for (const [key, label, type, required] of [
+    ["org", "Organization", "text", true], ["owner", "Owner name", "text", true],
+    ["email", "Owner email", "email", true], ["hr", "HR name (optional)", "text", false],
+    ["hrEmail", "HR email (optional)", "email", false], ["government_minimum","Government documents required","number",true],
+    ["bank_minimum","Bank documents required","number",true]]) {
+    if (data.organization && !key.endsWith("_minimum")) continue;
+    const field = node("label", label), input = node("input");
+    input.name = key; input.type = type; input.required = required;
+    if (type === "number") { input.min = 0; input.max = 2; input.value = schema[key]; }
+    field.append(input); form.append(field);
+  }
+  for (const [group,choices] of [["government_types",["PAN_CARD","AADHAAR_CARD"]],["bank_types",["BANK_PASSBOOK","CHEQUE"]]]) {
+    const set=node("fieldset");
+    set.append(node("legend",group === "government_types" ? "Accepted government documents" : "Accepted bank proofs"));
+    for (const kind of choices) {
+      const label=node("label",documentTypes[kind]), box=node("input");
+      box.type="checkbox"; box.checked=schema[group].includes(kind);
+      box.onchange=()=> { schema[group]=box.checked ? [...schema[group],kind] : schema[group].filter(item=>item!==kind); };
+      label.prepend(box);set.append(label);
+    }
+    form.append(set);
+  }
+  const definitions = node("details"); definitions.append(node("summary","Edit fields and migration mapping"));
+  const rows = [];
+  for (const item of schema.fields) {
+    const line = node("label", item.label, "draft-field");
+    const input = node("input"); input.value = item.key;
+    input.disabled = ["name","email","phone","track","client"].includes(item.key);
+    const select = node("select");
+    for (const t of ["text","number","date","boolean"]) select.add(new Option(t,t));
+    select.value=item.type; select.disabled=input.disabled;
+    const required = node("input"); required.type="checkbox"; required.checked=item.required; required.disabled=input.disabled;
+    line.append(input,select,node("span","Required"),required); definitions.append(line);
+    rows.push({item,input,select,required,old:item.key});
+  }
+  form.append(definitions);
+  const submit = node("button", data.organization ? "Review schema change" : "Review invitation", "primary"); submit.type = "submit"; form.append(submit);
+  form.onsubmit = event => {
+    event.preventDefault();
+    const v = Object.fromEntries(new FormData(form));
+    schema.government_minimum = Number(v.government_minimum);
+    schema.bank_minimum = Number(v.bank_minimum);
+    const rename_fields = {};
+    for (const {item,input,select,required,old} of rows) {
+      item.key=input.value.trim(); item.type=select.value; item.required=required.checked;
+      if (old !== item.key) rename_fields[old]=item.key;
+    }
+    if (data.organization) return sendTurn("Review schema change", {draft_id:data.id, setup:{
+      expected_version:data.organization.version,schema_definition:schema,rename_fields}});
+    sendTurn("Review customer configuration", {draft_id:data.id,setup:{name:v.org,owner:{name:v.owner,email:v.email},
+      hr:v.hr || v.hrEmail ? {name:v.hr,email:v.hrEmail} : null,schema_definition:schema}});
+  };
+  container.append(form);
+}
+
+async function selectOrganization() {
+  return perform(async () => {
+    const orgs = await api("/api/organizations");
+    const list = elements.suggestions;
+    list.replaceChildren();
+    const panel = elements["action-items"];
+    panel.replaceChildren();
+    for (const org of orgs) panel.append(button(org.name, () => sendTurn("Configure " + org.name, {organization_id:org.id}), "action-item"));
+    togglePopover("action-toggle","actions",true);
+  });
+}

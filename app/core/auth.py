@@ -89,7 +89,7 @@ def bootstrap_test_hr():
         )
 
 
-def current_user(request: Request, token: str | None = Depends(cookie)):
+async def current_user(request: Request, token: str | None = Depends(cookie)):
     now = time.time()
     settings = Settings.load()
     with connection() as db:
@@ -101,13 +101,15 @@ def current_user(request: Request, token: str | None = Depends(cookie)):
             if token:
                 db.execute("DELETE FROM auth_sessions WHERE token_hash=?", (digest(token),))
             raise HTTPException(401, "Please sign in.")
-        if row["role"] not in ("owner", "hr_admin", "employee"):
+        if row["role"] not in ("owner", "hr_admin", "employee", "super_admin"):
             raise HTTPException(403, "This account has no access.")
         db.execute(
             "UPDATE auth_sessions SET last_seen=? WHERE token_hash=?",
             (now, digest(token)),
         )
-    return {k: row[k] for k in ("id", "name", "email", "role", "must_change")}
+    from app.services.tenant_metadata import tenant_context
+    tenant_context.set(row["tenant_id"])
+    return {k: row[k] for k in ("id", "name", "email", "role", "must_change", "tenant_id")}
 
 
 def write_access(
@@ -176,3 +178,24 @@ def authenticate(email, password, ip, response):
         )
     set_session(response, token)
     return {"csrf_token": csrf_for(token)}
+
+
+def bootstrap_super_admin():
+    """Provision the platform operator only when explicitly configured."""
+    email = os.getenv("SUPER_ADMIN_EMAIL", "").strip().lower()
+    password = os.getenv("SUPER_ADMIN_PASSWORD", "")
+    if not email and not password:
+        return
+    from app.schemas.employee import EmployeeInput
+    email = EmployeeInput.email_clean(email)
+    if not 8 <= len(password) <= 256:
+        raise RuntimeError("Set SUPER_ADMIN_PASSWORD to 8 to 256 characters.")
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        existing=db.execute("SELECT role FROM users WHERE email=?", (email,)).fetchone()
+        if existing:
+            if existing["role"] != "super_admin":
+                raise RuntimeError("SUPER_ADMIN_EMAIL belongs to an existing account with another role.")
+            return
+        db.execute("INSERT INTO users(id,email,name,role,password,tenant_id) VALUES(?,?,?,?,?,?)",
+            (secrets.token_hex(16),email,"Super Admin","super_admin",hasher.hash(password),"default"))

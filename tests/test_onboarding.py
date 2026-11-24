@@ -48,23 +48,37 @@ def test_invitation_submission_review_and_offboarding(client, monkeypatch):
 
     def extract(data, filename, kind):
         return {"classification": {"document_type": kind}, "extraction": {
-            "document_type": kind, "status": "partial", "extracted_data": {"name": "Sample Person"}
+            "document_type": kind, "status": "partial", "extracted_data": {"name": "Sample Middle Person" if kind == "AADHAAR_CARD" else "Sample Person"}
         }}
 
     monkeypatch.setattr(client.app.state.pipeline, "process", extract)
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB",(30,20)).save(buf,"PNG")
     for kind in ("PAN_CARD", "AADHAAR_CARD", "CHEQUE"):
         result = employee.post(root + "/me/documents", data={"document_type": kind},
-                               files={"file": ("synthetic.png", kind.encode())})
+                               files={"file": ("synthetic.png", buf.getvalue())})
         assert result.status_code == 200, result.text
     person = result.json()
     document = root + "/documents/" + person["documents"][0]["id"]
     assert other.get(document).status_code == 404
-    assert hr.get(document).content == b"PAN_CARD"
+    assert hr.get(document).status_code == 404
+    assert hr.get(document + "/preview").headers["content-type"] == "image/png"
+    assert other.get(document + "/preview").status_code == 404
     submitted = employee.post(root + "/me/submit", json={"version": person["version"]}).json()
     assert submitted["status"] == "submitted"
     assert hr.get(root + "/employees?submitted=true").json()[0]["id"] == person["id"]
     action = root + "/employees/" + person["id"]
-    onboarded = hr.post(action + "/onboard", json={"version": submitted["version"]}).json()
+    assert hr.post(action + "/onboard", json={"version": submitted["version"]}).status_code == 422
+    edited = employee.put(root + "/me", json={"version":submitted["version"],"name":"Sample Person","phone":"9876543211"}).json()
+    assert edited["status"] == "draft"
+    revisions = hr.get(action + "/revisions").json()
+    assert revisions[-1]["before"]["phone"] == "9876543210"
+    assert revisions[-1]["after"]["phone"] == "9876543211"
+    submitted = employee.post(root + "/me/submit", json={"version":edited["version"]}).json()
+    reviewed = hr.post(action + "/name-review",json={"version":submitted["version"],"document_type":"AADHAAR_CARD","decision":"accepted","reason":"Reviewed the additional middle name against the source."}).json()
+    onboarded = hr.post(action + "/onboard", json={"version": reviewed["version"]}).json()
     assert onboarded["status"] == "onboarded"
     assert hr.post(action + "/offboard", json={"version": onboarded["version"]}).status_code == 200
     assert employee.get(root + "/me").status_code == 401

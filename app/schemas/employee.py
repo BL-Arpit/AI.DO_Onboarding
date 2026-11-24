@@ -9,6 +9,7 @@ class EmployeeInput(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: str = Field(min_length=3, max_length=254)
     phone: str = Field(min_length=8, max_length=30)
+    metadata: dict[str, str | bool | float | int] = Field(default_factory=dict, max_length=100)
     client: str = Field(default="", max_length=120)
     track: Literal["client", "onboard", "validate"] = "onboard"
 
@@ -47,7 +48,7 @@ class EmployeeInput(BaseModel):
 class UpdateEmployee(BaseModel):
     model_config = ConfigDict(extra="forbid")
     version: int = Field(ge=1)
-    fields: dict[str, str] = Field(min_length=1, max_length=5)
+    fields: dict[str, str | int | float | bool] = Field(min_length=1, max_length=100)
 
 
 class VersionInput(BaseModel):

@@ -82,7 +82,7 @@ class RequestSecurity:
                     (b"referrer-policy", b"no-referrer"),
                     (
                         b"content-security-policy",
-                        b"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+                        b"default-src 'self'; img-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
                     ),
                 ]
                 if self.settings.production:

@@ -5,6 +5,9 @@ BANK = frozenset({"CHEQUE", "BANK_PASSBOOK"})
 
 
 def workflow(person):
+    from app.services.tenant_metadata import configuration, DEFAULT_CONFIG
+    config = configuration(person["tenant_id"]) if person.get("tenant_id") else DEFAULT_CONFIG
+    govt, bank = config["government_minimum"], config["bank_minimum"]
     documents = person.get("documents", [])
     latest = {d["kind"]: d for d in documents}
     usable = [
@@ -12,8 +15,8 @@ def workflow(person):
         for d in latest.values()
         if not d["extraction"].get("is_mock") and d["extraction"].get("status") in {"success", "partial"}
     ]
-    government = sorted({d["kind"] for d in usable} & GOVERNMENT)
-    banks = sorted({d["kind"] for d in usable} & BANK)
+    government = sorted({d["kind"] for d in usable} & set(config["government_types"]))
+    banks = sorted({d["kind"] for d in usable} & set(config["bank_types"]))
     events = person.get("audit", [])
 
     def last(action):
@@ -21,10 +24,10 @@ def workflow(person):
 
     reviewed = last("fields_confirmed") > last("document_extracted")
     missing = []
-    if len(government) < 2:
-        missing.append(f"{2-len(government)} more distinct government document type(s)")
-    if not banks:
-        missing.append("1 bank document")
+    if len(government) < govt:
+        missing.append(f"{govt-len(government)} more distinct government document type(s)")
+    if len(banks) < bank:
+        missing.append(f"{bank-len(banks)} bank document(s)")
     if not reviewed:
         missing.append("field review and confirmation")
     issues = person.get("verification", {}).get("issues", [])
@@ -41,8 +44,8 @@ def workflow(person):
         "stage": "complete" if complete else "in_progress",
         "government_types": government,
         "bank_types": banks,
-        "minimum_government": 2,
-        "minimum_bank": 1,
+        "minimum_government": govt,
+        "minimum_bank": bank,
         "fields_reviewed": reviewed,
         "missing": missing,
         "next_step": next_step,

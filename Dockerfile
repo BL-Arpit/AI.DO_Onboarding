@@ -3,9 +3,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BIND_HOST=0.0.0.0 OMP_THREAD_LI
 WORKDIR /project
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng libglib2.0-0 libgomp1 && rm -rf /var/lib/apt/lists/*
 COPY requirements.lock requirements-gguf.txt ./
-ARG INSTALL_GGUF=0
-ARG GGUF_MODEL_URL=
-ARG GGUF_MODEL_SHA256=
+ARG INSTALL_GGUF=1
+ARG GGUF_MODEL_URL=https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_S.gguf
+ARG GGUF_MODEL_SHA256=a8654d8eb14c45ef3c6170b3f0c6ccd02ba3e1a6b406ca02f4ffadf0b1b222a0
+ENV GGUF_MODEL_PATH=/project/model/replies.gguf GGUF_CONTEXT_TOKENS=1024 GGUF_THREADS=1 GGUF_MAX_REPLY_TOKENS=128
 ENV OPENBLAS_NUM_THREADS=1
 
 RUN pip install --no-cache-dir -r requirements.lock
@@ -18,6 +19,9 @@ COPY app ./app
 COPY config ./config
 COPY model ./model
 COPY run.py ./
+COPY scripts/check_local_model.py ./scripts/check_local_model.py
+COPY scripts/fetch_memory_model.py ./scripts/fetch_memory_model.py
+RUN python scripts/fetch_memory_model.py /project/model/memory
 RUN if [ -n "$GGUF_MODEL_URL" ]; then \
       test "$INSTALL_GGUF" = 1 && test -n "$GGUF_MODEL_SHA256" && \
       python -c 'import sys,urllib.request; urllib.request.urlretrieve(sys.argv[1], "/project/model/replies.gguf")' "$GGUF_MODEL_URL" && \

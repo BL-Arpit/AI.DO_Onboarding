@@ -8,6 +8,38 @@ from app.repositories import conversations
 from app.repositories.database import connection
 
 
+def test_pending_hr_name_correction_and_model_chat(client, monkeypatch):
+    from app.chat import onboarding_agent
+    monkeypatch.setattr(conversations, "collection", lambda: mongo.aido.conversations)
+    mongo = mongomock.MongoClient()
+    monkeypatch.delenv("GGUF_MODEL_PATH", raising=False)
+    path = "/api/conversations/" + client.post("/api/conversations").json()["id"] + "/turn"
+    first = client.post(path, json={"text": "appoint HR Wrong Name, hr@example.com"})
+    old = first.json()["active_confirmation"]
+    fixed = client.post(path, json={"text": "change name to Correct Name"})
+    assert fixed.status_code == 200
+    assert "Correct Name" in fixed.json()["messages"][-1]["text"]
+    assert fixed.json()["active_confirmation"] != old
+    with connection() as db:
+        assert db.execute("SELECT id FROM users WHERE email=?", ("hr@example.com",)).fetchone() is None
+    monkeypatch.setattr(onboarding_agent, "interpret", lambda *args: {
+        "action": "chat", "command": "", "reply": "Hi! What would you like to do today?"})
+    reply = client.post(path, json={"text": "How are you?"}).json()
+    assert reply["messages"][-1]["text"] == "Hi! What would you like to do today?"
+
+
+def test_employee_draft_name_correction(client, monkeypatch):
+    mongo = mongomock.MongoClient()
+    monkeypatch.setattr(conversations, "collection", lambda: mongo.aido.conversations)
+    monkeypatch.delenv("GGUF_MODEL_PATH", raising=False)
+    path = "/api/conversations/" + client.post("/api/conversations").json()["id"] + "/turn"
+    client.post(path, json={"text": "add Wrong Name, arpit@example.com, 9876543210"})
+    result = client.post(path, json={"text": "change name to Arpit Sahu"})
+    assert result.status_code == 200
+    fields = result.json()["messages"][-1]["data"]["fields"]
+    assert fields == {"name": "Arpit Sahu", "email": "arpit@example.com", "phone": "9876543210"}
+
+
 def test_add_prompt_prefills_inline_draft_before_employee_creation(client, monkeypatch):
     collection = mongomock.MongoClient().aido.conversations
     monkeypatch.setattr(conversations, "collection", lambda: collection)

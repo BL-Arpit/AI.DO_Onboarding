@@ -27,7 +27,7 @@ def cell_text(value):
     return str(value).strip()
 
 
-def parse_excel(content, filename, sheet_name=None):
+def parse_excel(content, filename, sheet_name=None, schema_fields=()):
     suffix = Path(filename).suffix.lower()
     if suffix not in (".xlsx", ".xls"):
         raise ValueError("Upload a raw .xlsx or .xls Excel file.")
@@ -69,9 +69,12 @@ def parse_excel(content, filename, sheet_name=None):
             ]
         if not rows:
             raise ValueError("The worksheet is empty.")
+        custom = {f["key"]:f for f in schema_fields if f["key"] not in ALIASES}
+        extra = {re.sub("[^a-z0-9]", "", f["label"].lower()):key for key,f in custom.items()}
         mapping = {}
         for i, header in enumerate(rows[0][0]):
-            key = HEADERS.get(re.sub(r"[^a-z0-9]", "", header.lower()))
+            normalized = re.sub(r"[^a-z0-9]", "", header.lower())
+            key = HEADERS.get(normalized) or extra.get(normalized)
             if key:
                 if key in mapping:
                     raise ValueError("Duplicate header for " + key + ".")
@@ -87,6 +90,26 @@ def parse_excel(content, filename, sheet_name=None):
                 continue
             data = {key: row[index] if index < len(row) else "" for key, index in mapping.items()}
             person, issues = clean_person(data)
+            meta = {}
+            for key, field in custom.items():
+                value = data.get(key,"")
+                if not value:
+                    if field["required"]:
+                        issues.append(f"{field['label']} is required.")
+                    continue
+                try:
+                    if field["type"] == "number":
+                        value = float(value)
+                    elif field["type"] == "boolean":
+                        value = {"true": True, "false": False, "yes": True, "no": False}[value.lower()]
+                    elif field["type"] == "date":
+                        from datetime import date
+                        value = date.fromisoformat(value.split(" ")[0]).isoformat()
+                    meta[key] = value
+                except (ValueError, KeyError):
+                    issues.append(f"Invalid {field['label']}.")
+            if meta:
+                person["metadata"] = meta
             if formula:
                 issues.append("Replace formulas with raw values.")
             if person["email"] in seen:
@@ -135,7 +158,7 @@ def master_table(employees):
         return result
 
     people = list(employees)
-    fields = [flatten(person.get("fields", {})) for person in people]
+    fields = [{**flatten(person.get("fields", {})), **flatten(person.get("metadata", {}), "employee")} for person in people]
     extra = sorted({key for person in fields for key in person})
     columns = [
         "Hash Value",
