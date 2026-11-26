@@ -1,0 +1,7 @@
+Apply over the React UI update. Replace the included files at the same relative paths, commit and push to the Render branch, then deploy the latest commit. The current Dockerfile recompiles frontend/src. No new dependencies or environment variables are needed.
+
+Logout is visible at bottom left on desktop and mobile. It calls POST /api/auth/logout with the session CSRF token and clears the workspace after success.
+
+The document drawer, extracted-field editor and change-history UI have been removed. Documents can be viewed read-only inline in the conversation.
+
+Verified production build and browser checks at 1440x960 and 390x844 with mocked APIs. Checks covered logout location and payload, sign-in screen after logout, inline preview, absent drawer/editor/history and no horizontal or composer/account overlap. Live Render deployment remains unverified.

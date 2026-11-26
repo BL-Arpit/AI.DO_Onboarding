@@ -108,14 +108,12 @@ function App() {
     [error, setError] = useState(""),
     [prompt, setPrompt] = useState("");
   const [menu, setMenu] = useState(false),
-    [account, setAccount] = useState(false),
     [agent, setAgent] = useState(false);
   const [file, setFile] = useState(null),
     [kind, setKind] = useState(""),
     [pending, setPending] = useState(null),
     [fresh, setFresh] = useState(-1);
-  const [inspector, setInspector] = useState(null),
-    [drag, setDrag] = useState(false),
+  const [drag, setDrag] = useState(false),
     [orgs, setOrgs] = useState(null);
   const input = useRef(),
     scroll = useRef(),
@@ -135,9 +133,7 @@ function App() {
     const key = (e) => {
       if (e.key === "Escape") {
         setMenu(false);
-        setAccount(false);
         setAgent(false);
-        setInspector(null);
         setOrgs(null);
       }
     };
@@ -196,7 +192,6 @@ function App() {
       if (e.status === 401) {
         setSession(null);
         setThread(null);
-        setInspector(null);
       }
     } finally {
       lock.current = false;
@@ -262,23 +257,6 @@ function App() {
       );
       reveal(current);
       setFile(null);
-      const record = current.messages.at(-1)?.data?.profile;
-      if (employee && record?.documents?.length)
-        await openRecord(record, record.documents.at(-1));
-    });
-  }
-  async function openRecord(person, doc) {
-    const record = await api(
-      employee
-        ? "/api/onboarding/me"
-        : "/api/onboarding/employees/" + person.id,
-    );
-    setInspector({
-      person: record,
-      doc:
-        record.documents?.find((d) => d.id === doc?.id) ||
-        record.documents?.at(-1) ||
-        null,
     });
   }
   async function older() {
@@ -403,7 +381,43 @@ function App() {
         : ["Add an employee", "Show submissions", "Find an employee"];
   const messages = thread?.messages || [];
   return (
-    <div className={"app " + (inspector ? "with-inspector" : "")}>
+    <div className="app">
+      <aside className="account-rail" aria-label="Your account">
+        <div className="account-footer">
+          <div className="account-identity">
+            <span className="avatar">
+              {session.user.name
+                ?.split(/\s+/)
+                .slice(0, 2)
+                .map((n) => n[0])
+                .join("") || "A"}
+            </span>
+            <div>
+              <strong>{session.user.name}</strong>
+              <small>{ROLES[role]}</small>
+            </div>
+          </div>
+          <button
+            className="logout-button"
+            disabled={busy}
+            onClick={() =>
+              perform(async () => {
+                await api("/api/auth/logout", { method: "POST" });
+                setSession(null);
+                setThread(null);
+                setFile(null);
+                setOrgs(null);
+                setPrompt("");
+                setMenu(false);
+                setAgent(false);
+              })
+            }
+          >
+            <LogOut size={16} />
+            <span>Log out</span>
+          </button>
+        </div>
+      </aside>
       <section className="chat-shell">
         <header className="topbar">
           <div className="brand-group">
@@ -424,45 +438,6 @@ function App() {
                 </div>
               )}
             </div>
-          </div>
-          <div className="account-control">
-            <button
-              className="account-button"
-              aria-label="Account menu"
-              onClick={() => setAccount(!account)}
-            >
-              <span className="avatar">
-                {session.user.name
-                  ?.split(/\s+/)
-                  .slice(0, 2)
-                  .map((n) => n[0])
-                  .join("") || "A"}
-              </span>
-              <span className="account-copy">
-                <strong>{session.user.name}</strong>
-                <small>{ROLES[role]}</small>
-              </span>
-              <ChevronDown size={13} />
-            </button>
-            {account && (
-              <div className="account-menu">
-                <span>{session.user.email}</span>
-                <button
-                  onClick={() =>
-                    perform(async () => {
-                      await api("/api/auth/logout", { method: "POST" });
-                      setSession(null);
-                      setThread(null);
-                      setInspector(null);
-                      setAccount(false);
-                    })
-                  }
-                >
-                  <LogOut size={15} />
-                  Sign out
-                </button>
-              </div>
-            )}
           </div>
         </header>
         <div
@@ -550,9 +525,6 @@ function App() {
                       fields={fields}
                       send={send}
                       choose={() => input.current.click()}
-                      open={(person, doc) =>
-                        perform(() => openRecord(person, doc))
-                      }
                     />
                   )}
                 </Message>
@@ -736,18 +708,6 @@ function App() {
           />
         </footer>
       </section>
-      {inspector && (
-        <Inspector
-          key={inspector.person.id + ":" + inspector.doc?.id}
-          {...inspector}
-          employee={employee}
-          busy={busy}
-          api={api}
-          perform={perform}
-          onClose={() => setInspector(null)}
-          onUpdate={(person) => setInspector({ ...inspector, person })}
-        />
-      )}
     </div>
   );
 }
@@ -871,7 +831,7 @@ function Message({ message, fresh, children, onResize }) {
     </article>
   );
 }
-function Result({ data, active, role, busy, fields, send, choose, open }) {
+function Result({ data, active, role, busy, fields, send, choose }) {
   const confirm = () =>
     send("Confirm", { action: "confirm", confirmation_id: data.id });
   const cancel = () =>
@@ -1018,7 +978,6 @@ function Result({ data, active, role, busy, fields, send, choose, open }) {
             fields={fields}
             send={send}
             choose={choose}
-            open={open}
           />
         );
       return active ? (
@@ -1083,7 +1042,6 @@ function Result({ data, active, role, busy, fields, send, choose, open }) {
           role={role}
           busy={busy}
           send={send}
-          open={open}
         />
       );
     case "employees":
@@ -1248,8 +1206,9 @@ function Badge({ status }) {
     </span>
   );
 }
-function Person({ person, role, busy, send, open }) {
+function Person({ person, role, busy, send }) {
   const [editing, setEditing] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
   if (!person) return null;
   return (
     <Card>
@@ -1294,19 +1253,28 @@ function Person({ person, role, busy, send, open }) {
           <button
             key={doc.id}
             disabled={busy}
-            onClick={() => open(person, doc)}
+            onClick={() =>
+              setPreviewDoc(previewDoc?.id === doc.id ? null : doc)
+            }
           >
             <span className="file-icon">
               <FileText size={17} />
             </span>
             <span>
               <strong>{TYPES[doc.kind] || doc.kind}</strong>
-              <small>Open original & extracted fields</small>
+              <small>Preview original document</small>
             </span>
             <ChevronRight size={16} />
           </button>
         ))}
       </div>
+      {previewDoc && (
+        <DocumentPreview
+          key={previewDoc.id}
+          doc={previewDoc}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
       {role === "employee" && (
         <>
           <Btn disabled={busy} onClick={() => setEditing(!editing)}>
@@ -1526,50 +1494,31 @@ function SchemaForm({ data, send, busy, cancel }) {
     </Card>
   );
 }
-function Inspector({
-  person,
-  doc,
-  employee,
-  busy,
-  api,
-  perform,
-  onClose,
-  onUpdate,
-}) {
+function DocumentPreview({ doc, onClose }) {
   const [page, setPage] = useState(1),
     [pages, setPages] = useState(1),
     [image, setImage] = useState(null),
     [error, setError] = useState(""),
-    [loading, setLoading] = useState(true),
-    [tab, setTab] = useState("fields");
-  const ref = useRef(),
-    close = useRef();
-  useEffect(() => {
-    const previous = document.activeElement;
-    close.current?.focus();
-    return () => previous?.focus();
-  }, []);
+    [loading, setLoading] = useState(true);
   useEffect(() => {
     const controller = new AbortController();
-    let blob;
-    if (!doc) {
-      setLoading(false);
-      return;
-    }
+    let url;
     setLoading(true);
     setError("");
     fetch("/api/onboarding/documents/" + doc.id + "/preview?page=" + page, {
       credentials: "same-origin",
       signal: controller.signal,
     })
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json();
-          throw new Error(d.detail || "Preview unavailable");
+      .then(async (response) => {
+        if (!response.ok) {
+          const value = await response.json();
+          throw new Error(value.detail || "Preview unavailable.");
         }
-        setPages(Number(r.headers.get("X-Page-Count")) || 1);
-        blob = URL.createObjectURL(await r.blob());
-        if (!controller.signal.aborted) setImage(blob);
+        const blob = await response.blob();
+        if (controller.signal.aborted) return;
+        url = URL.createObjectURL(blob);
+        setImage(url);
+        setPages(Number(response.headers.get("X-Page-Count")) || 1);
       })
       .catch((e) => {
         if (e.name !== "AbortError") setError(e.message);
@@ -1579,280 +1528,52 @@ function Inspector({
       });
     return () => {
       controller.abort();
-      if (blob) URL.revokeObjectURL(blob);
+      if (url) URL.revokeObjectURL(url);
     };
-  }, [doc?.id, page]);
-  const original = doc?.extraction?.extracted_data || {};
-  const latest =
-    person.documents?.filter((d) => d.kind === doc?.kind).at(-1)?.id ===
-    doc?.id;
-  const editable = ["draft", "submitted"].includes(person.status) && latest;
-  const values = latest ? person.fields?.[doc?.kind] || original : original;
-  const check = person.name_checks?.find((c) => c.type === doc?.kind);
+  }, [doc.id, page]);
   return (
-    <aside
-      className="inspector"
-      role="dialog"
-      aria-label="Document inspector"
-      ref={ref}
-      onKeyDown={(e) => {
-        if (e.key === "Tab") {
-          const focusable = [
-            ...ref.current.querySelectorAll("button,input,textarea,select,a"),
-          ].filter((n) => !n.disabled && n.offsetParent !== null);
-          if (e.shiftKey && document.activeElement === focusable[0]) {
-            e.preventDefault();
-            focusable.at(-1)?.focus();
-          } else if (
-            !e.shiftKey &&
-            document.activeElement === focusable.at(-1)
-          ) {
-            e.preventDefault();
-            focusable[0]?.focus();
-          }
-        }
-      }}
-    >
-      <header className="inspector-header">
-        <div>
-          <span className="eyebrow">DOCUMENT INSPECTOR</span>
-          <h2>{TYPES[doc?.kind] || "Employee documents"}</h2>
-        </div>
+    <section className="inline-document" aria-label="Document preview">
+      <div className="preview-toolbar">
+        <span>{TYPES[doc.kind] || doc.kind}</span>
         <button
-          ref={close}
           className="icon-button"
-          aria-label="Close document inspector"
+          aria-label="Close document preview"
           onClick={onClose}
         >
-          <X size={20} />
+          <X size={16} />
         </button>
-      </header>
-      <div className="inspector-scroll">
-        <div className="inspector-person">
-          <span className="person-avatar">{person.name?.[0]}</span>
-          <div>
-            <strong>{person.name}</strong>
-            <small>{person.email}</small>
-          </div>
-          <Badge status={person.status} />
-        </div>
-        <div className="preview-toolbar">
-          <span>
-            <FileText size={14} />
-            Original document
-          </span>
-          <div>
-            <button
-              className="icon-button"
-              aria-label="Previous page"
-              disabled={page <= 1 || loading}
-              onClick={() => setPage(page - 1)}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span>
-              {page} / {pages}
-            </span>
-            <button
-              className="icon-button"
-              aria-label="Next page"
-              disabled={page >= pages || loading}
-              onClick={() => setPage(page + 1)}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="preview-surface">
-          {loading ? (
-            <div className="preview-loading">
-              <span className="send-spinner" />
-              Loading document
-            </div>
-          ) : error ? (
-            <ErrorLine text={error} />
-          ) : image ? (
-            <img src={image} alt={TYPES[doc?.kind] + " original document"} />
-          ) : (
-            <span>No document attached.</span>
-          )}
-        </div>
-        <div className="tabs">
-          <button
-            className={tab === "fields" ? "selected" : ""}
-            onClick={() => setTab("fields")}
-          >
-            Extracted fields
-          </button>
-          <button
-            className={tab === "changes" ? "selected" : ""}
-            onClick={() => setTab("changes")}
-          >
-            Change history <span>{person.revisions?.length || 0}</span>
-          </button>
-        </div>
-        {tab === "fields" ? (
-          <>
-            <p className="inspector-hint">
-              Compare each value with the original before saving.
-            </p>
-            <form
-              className="form-fields"
-              key={person.version}
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fields = formValues(e.currentTarget);
-                perform(async () => {
-                  const result = await api(
-                    "/api/onboarding/employees/" + person.id + "/fields",
-                    {
-                      method: "POST",
-                      body: {
-                        version: person.version,
-                        fields: { [doc.kind]: fields },
-                      },
-                    },
-                  );
-                  onUpdate(result);
-                });
-              }}
-            >
-              {Object.entries(values)
-                .filter(
-                  ([, v]) =>
-                    v === null ||
-                    ["string", "number", "boolean"].includes(typeof v),
-                )
-                .map(([k, v]) => (
-                  <div key={k} className="inspector-field">
-                    <Field
-                      label={k.replaceAll("_", " ")}
-                      name={k}
-                      defaultValue={v ?? ""}
-                      disabled={!editable || busy}
-                    />
-                    {String(original[k] ?? "") !== String(v ?? "") && (
-                      <small>
-                        Original OCR · {String(original[k] ?? "Blank")}
-                      </small>
-                    )}
-                  </div>
-                ))}
-              {editable && Object.keys(values).length > 0 && (
-                <button className="btn primary" disabled={busy}>
-                  Save reviewed fields
-                  <Check size={15} />
-                </button>
-              )}
-            </form>
-            {check && (
-              <section
-                className={
-                  "name-check " + (check.review_required ? "attention" : "")
-                }
-              >
-                <div>
-                  <ShieldCheck size={17} />
-                  <strong>
-                    {check.review_required ? "Name needs review" : "Name check"}
-                  </strong>
-                </div>
-                <p>
-                  {check.prompt ||
-                    check.reason?.replaceAll("_", " ") ||
-                    check.result}
-                </p>
-                {!employee &&
-                  editable &&
-                  check.reason === "middle_name_difference" && (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const v = formValues(e.currentTarget);
-                        perform(async () =>
-                          onUpdate(
-                            await api(
-                              "/api/onboarding/employees/" +
-                                person.id +
-                                "/name-review",
-                              {
-                                method: "POST",
-                                body: {
-                                  version: person.version,
-                                  document_type: doc.kind,
-                                  reason: v.reason,
-                                  decision: e.nativeEvent.submitter.value,
-                                },
-                              },
-                            ),
-                          ),
-                        );
-                      }}
-                    >
-                      <textarea
-                        name="reason"
-                        aria-label="Name review reason"
-                        placeholder="Record your review decision…"
-                        minLength={5}
-                        required
-                      />
-                      <div className="card-actions">
-                        <button
-                          className="btn primary"
-                          value="accepted"
-                          disabled={busy}
-                        >
-                          Accept name
-                        </button>
-                        <button
-                          className="btn"
-                          value="rejected"
-                          disabled={busy}
-                        >
-                          Request correction
-                        </button>
-                      </div>
-                    </form>
-                  )}
-              </section>
-            )}
-          </>
+      </div>
+      <div className="preview-surface">
+        {loading ? (
+          <p className="muted">Loading preview…</p>
+        ) : error ? (
+          <ErrorLine text={error} />
         ) : (
-          <div className="revision-list">
-            {person.revisions?.length ? (
-              person.revisions.map((r, i) => (
-                <section key={i}>
-                  <div className="revision-heading">
-                    <strong>{r.action.replaceAll("_", " ")}</strong>
-                    <small>{new Date(r.created).toLocaleDateString()}</small>
-                  </div>
-                  {(r.changes || [])
-                    .filter(
-                      (c) => !c.document_type || c.document_type === doc?.kind,
-                    )
-                    .map((c, j) => (
-                      <div className="revision-row" key={j}>
-                        <span>{c.field.replaceAll("_", " ")}</span>
-                        <div>
-                          <small>Before</small>
-                          <p>{String(c.before ?? "Blank")}</p>
-                        </div>
-                        <div>
-                          <small>After</small>
-                          <p>{String(c.after ?? "Blank")}</p>
-                        </div>
-                      </div>
-                    ))}
-                  {r.reason && <p className="muted">{r.reason}</p>}
-                </section>
-              ))
-            ) : (
-              <p className="muted">No edits recorded yet.</p>
-            )}
-          </div>
+          <img src={image} alt={(TYPES[doc.kind] || doc.kind) + " original"} />
         )}
       </div>
-    </aside>
+      {pages > 1 && (
+        <div className="inline-pagination">
+          <Btn
+            disabled={loading || page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
+            <ChevronLeft size={15} />
+            Previous
+          </Btn>
+          <span>
+            {page} / {pages}
+          </span>
+          <Btn
+            disabled={loading || page >= pages}
+            onClick={() => setPage(page + 1)}
+          >
+            Next
+            <ChevronRight size={15} />
+          </Btn>
+        </div>
+      )}
+    </section>
   );
 }
 createRoot(document.getElementById("root")).render(<App />);
