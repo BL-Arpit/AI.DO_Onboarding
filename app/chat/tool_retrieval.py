@@ -20,6 +20,22 @@ ACTIONS = {
     "unknown": "chat",
 }
 EXAMPLES = {
+    "correct_account": [
+        "Correct the employee email address",
+        "Update HR email from old to new",
+        "Change the name on this account",
+    ],
+    "request_hr": [
+        "Ask HR for permission",
+        "Request a change to my email",
+        "Ask HR to correct my contact details",
+    ],
+    "requests": [
+        "Show pending HR requests",
+        "Show my requests",
+        "Which employees are asking permission?",
+    ],
+    "accounts": ["Show company accounts", "List employee login accounts", "Show HR accounts"],
     "missing_government": [
         "Who still owes a government document?",
         "Which employees have missing government IDs?",

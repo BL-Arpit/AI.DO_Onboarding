@@ -23,10 +23,22 @@ TOOL_CATALOG = {
         ("owner", "hr_admin"),
         ("field", "equals"),
     ),
+    "correct_account": (
+        "Propose account name or email correction",
+        ("owner", "hr_admin"),
+        ("target", "name", "email", "phone"),
+    ),
+    "requests": ("Read employee requests", ("owner", "hr_admin", "employee"), ()),
+    "accounts": ("List the accounts you can manage", ("owner", "hr_admin"), ()),
+    "request_hr": (
+        "Request HR permission or a contact correction",
+        ("employee",),
+        ("name", "email", "phone"),
+    ),
     "chat": ("Reply or ask a question", ("owner", "hr_admin", "employee"), ()),
     "employee_draft": (
         "Collect/correct new employee fields",
-        ("owner", "hr_admin"),
+        ("hr_admin",),
         ("name", "email", "phone"),
     ),
     "invite_hr": ("Propose an HR invitation", ("owner",), ("name", "email")),
@@ -35,17 +47,21 @@ TOOL_CATALOG = {
     "find_employee": ("Find employee by name/email", ("owner", "hr_admin"), ("target",)),
     "update_employee": (
         "Propose employee changes",
-        ("owner", "hr_admin"),
+        ("hr_admin",),
         ("target", "name", "email", "phone", "client", "track", "field", "equals"),
     ),
     "my_profile": ("Read your profile", ("employee",), ()),
-    "update_my_profile": ("Propose your profile changes", ("employee",), ("name", "phone")),
+    "update_my_profile": (
+        "Request HR approval of your contact changes",
+        ("employee",),
+        ("name", "email", "phone"),
+    ),
     "submit": ("Propose submission for review", ("employee",), ()),
-    "onboard": ("Propose employee approval", ("owner", "hr_admin"), ("target",)),
-    "offboard": ("Propose employee offboarding", ("owner", "hr_admin"), ("target",)),
-    "reopen": ("Propose return for correction", ("owner", "hr_admin"), ("target",)),
-    "resend": ("Propose a replacement invitation", ("owner", "hr_admin"), ("target",)),
-    "import": ("Request employee workbook upload", ("owner", "hr_admin"), ()),
+    "onboard": ("Propose employee approval", ("hr_admin",), ("target",)),
+    "offboard": ("Propose employee offboarding", ("hr_admin",), ("target",)),
+    "reopen": ("Propose return for correction", ("hr_admin",), ("target",)),
+    "resend": ("Propose a replacement invitation", ("hr_admin",), ("target",)),
+    "import": ("Request employee workbook upload", ("hr_admin",), ()),
     "export": ("Offer master Excel download", ("owner", "hr_admin"), ()),
     "upload": ("Request employee document upload", ("employee",), ()),
 }
@@ -308,10 +324,24 @@ def run(thread, state, turn, user):
         exclude_none=True, include={"name", "email", "phone", "client", "track"}
     )
     tool = d.tool
+    if tool in {"requests", "accounts", "correct_account", "request_hr"}:
+        from app.chat.administration_agent import respond
+
+        payload = {"target": args.target, "fields": changes, "message": turn.text}
+        if tool == "correct_account":
+            action = "account_change"
+            payload = {"target": args.target, "fields": changes}
+        elif tool == "request_hr":
+            action = "request_hr"
+            payload = {"fields": changes, "message": turn.text}
+        else:
+            action = tool
+            payload = {}
+        return respond(state, agent.Turn(text=turn.text, action=action, payload=payload), user)
     if tool == "chat":
         return d.reply or "What would you like help with?", None
     if tool == "employee_draft":
-        onboarding.staff(user)
+        onboarding.manager(user)
         fields = {
             k: state.get("draft", {}).get("fields", {}).get(k, "") for k in agent.DRAFT_FIELDS
         }
@@ -448,16 +478,16 @@ def run(thread, state, turn, user):
                 state, "submit", {"version": person["version"]}, "Submit your documents for review?"
             )
         else:
-            if set(changes) - {"name", "phone"}:
-                raise HTTPException(422, "You can update your name and phone only.")
-            body = onboarding.Contact.model_validate({**person, **changes})
-            if person["status"] == "onboarded" and body.name != person["name"]:
-                raise HTTPException(422, "After onboarding, you can only update your phone number.")
+            if set(changes) - {"name", "email", "phone"}:
+                raise HTTPException(422, "Request changes to name, email or phone.")
+            from app.api.administration import clean_changes
+
+            changes = clean_changes(changes)
             result = agent._proposal(
                 state,
-                "profile_update",
-                body.model_dump(),
-                "Update your profile: " + json.dumps(changes) + "?",
+                "request_hr",
+                {"message": turn.text, "fields": changes},
+                "Send this correction to HR for approval?",
             )
     else:
         # UI-only actions share existing upload/import/export handlers, no text parser.

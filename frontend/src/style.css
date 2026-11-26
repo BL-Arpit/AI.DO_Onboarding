@@ -1227,3 +1227,44 @@ input[type="checkbox"] {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
 }
+
+.account-record,
+.request-record {
+  padding: 14px 0;
+  border-bottom: 1px solid #303030;
+}
+.account-record:last-child,
+.request-record:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.request-record .card-heading {
+  justify-content: space-between;
+}
+.request-record textarea,
+.request-compose textarea {
+  width: 100%;
+  min-height: 70px;
+  margin: 10px 0;
+  resize: vertical;
+}
+.request-value {
+  font-size: 11px;
+  color: #b5c4a7;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.request-compose {
+  margin-bottom: 12px;
+  max-height: 250px;
+  overflow: auto;
+}
+.request-compose .card-heading {
+  justify-content: space-between;
+}

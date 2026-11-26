@@ -67,32 +67,42 @@ def draft(state, schema, organization=None):
 
 
 def respond(thread, state, turn, user):
-    if user["role"] == "super_admin":
-        organizations.super_admin(user)
-    elif user["role"] != "owner" or user["must_change"]:
-        raise HTTPException(403,"Owner access required.")
+    organizations.super_admin(user)
     command = turn.action or turn.text.lower().strip()
-    if user["role"] == "super_admin" and command in {"invite owner","add owner","configure customer"}:
-        state.pop("setup",None)
-        state.pop("pending",None)
-        state.pop("schema_chat",None)
+    if user["role"] == "super_admin" and command in {
+        "invite owner",
+        "add owner",
+        "configure customer",
+    }:
+        state.pop("setup", None)
+        state.pop("pending", None)
+        state.pop("schema_chat", None)
     if turn.organization_id:
-        if user["role"] != "super_admin" and turn.organization_id != user["tenant_id"]:
-            raise HTTPException(403,"Choose your own organization.")
+        if turn.organization_id != user["tenant_id"]:
+            raise HTTPException(403, "Choose your own organization.")
         from app.services.tenant_metadata import configuration
 
         org = configuration(turn.organization_id)
         schema = TenantSchema.model_validate({k: org[k] for k in TenantSchema.model_fields})
         if not turn.setup:
-            state["setup"] = {"id":secrets.token_hex(16),"schema":schema.model_dump(),
-                "organization":{"id":turn.organization_id,"name":org["name"],"version":org["version"]}}
-            return "Would you like to upload your employee sheet or create the onboarding schema here?", {
-                "type":"schema_choice","organization_id":turn.organization_id}
-        raise HTTPException(422,"Choose the organization before submitting its schema.")
+            state["setup"] = {
+                "id": secrets.token_hex(16),
+                "schema": schema.model_dump(),
+                "organization": {
+                    "id": turn.organization_id,
+                    "name": org["name"],
+                    "version": org["version"],
+                },
+            }
+            return (
+                "Would you like to upload your employee sheet or create the onboarding schema here?",
+                {"type": "schema_choice", "organization_id": turn.organization_id},
+            )
+        raise HTTPException(422, "Choose the organization before submitting its schema.")
     if command in ("cancel", "no"):
         state.pop("pending", None)
         state.pop("setup", None)
-        state.pop("schema_chat",None)
+        state.pop("schema_chat", None)
         return "Setup cancelled.", None
     if command in ("confirm", "yes"):
         pending = state.get("pending", {})
@@ -108,7 +118,7 @@ def respond(thread, state, turn, user):
             conversations.consume_confirmation(thread)
             state.pop("pending", None)
             state.pop("setup", None)
-            state.pop("schema_chat",None)
+            state.pop("schema_chat", None)
             return f"Published version {config['version']} for {org['name']}.", None
         organizations.super_admin(user)
         result = organizations.provision(
@@ -116,12 +126,19 @@ def respond(thread, state, turn, user):
         )
         conversations.consume_confirmation(thread)
         state.pop("pending", None)
-        state["setup"] = {"id":secrets.token_hex(16),"schema":DEFAULT_CONFIG,
-            "organization":{"id":result["id"],"name":pending["values"]["name"],"version":1}}
-        return "Owner invited. Would you like to upload the employee sheet or create the schema in chat?", {
-            "type":"schema_choice","organization_id":result["id"],
-            **result,
+        state["setup"] = {
+            "id": secrets.token_hex(16),
+            "schema": DEFAULT_CONFIG,
+            "organization": {"id": result["id"], "name": pending["values"]["name"], "version": 1},
         }
+        return (
+            "Owner invited. Would you like to upload the employee sheet or create the schema in chat?",
+            {
+                "type": "schema_choice",
+                "organization_id": result["id"],
+                **result,
+            },
+        )
     if turn.setup:
         if state.get("setup", {}).get("id") != turn.draft_id:
             raise HTTPException(409, "Reopen the current setup card.")
@@ -155,20 +172,26 @@ def respond(thread, state, turn, user):
     if active.get("organization"):
         if command == "create schema in chat":
             state["schema_chat"] = True
-            return "Tell me the employee fields you need, separated by commas. For example, department, start date, location. You can also say ‘2 government documents and 1 bank document’. Say ‘review schema’ when ready.", None
+            return (
+                "Tell me the employee fields you need, separated by commas. For example, department, start date, location. You can also say ‘2 government documents and 1 bank document’. Say ‘review schema’ when ready.",
+                None,
+            )
         if state.get("schema_chat") and command != "review schema":
-            if not re.search(r"\b(?:government|govt|bank)\b",turn.text,re.I):
+            if not re.search(r"\b(?:government|govt|bank)\b", turn.text, re.I):
                 fields = list(schema["fields"])
-                for label in re.split(r",|\n",turn.text):
-                    label=label.strip()
-                    key=re.sub(r"[^a-z0-9]+","_",label.lower()).strip("_")
+                for label in re.split(r",|\n", turn.text):
+                    label = label.strip()
+                    key = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
                     if key and key not in {f["key"] for f in fields}:
-                        fields.append({"key":key,"label":label,"type":"text","required":False})
-                schema=TenantSchema.model_validate({**schema,"fields":fields}).model_dump()
-            state["setup"]["schema"]=schema
-            return "Your schema includes " + ", ".join(f["label"] for f in schema["fields"]) + ". Add more fields or document counts, or say ‘review schema’.", None
-        return draft(state,schema,active["organization"])
-    key=secrets.token_hex(16)
-    state["setup"]={"id":key,"schema":DEFAULT_CONFIG,"organization":None}
-    return "Who should receive the owner invitation?", {"type":"owner_invite","id":key}
-
+                        fields.append(
+                            {"key": key, "label": label, "type": "text", "required": False}
+                        )
+                schema = TenantSchema.model_validate({**schema, "fields": fields}).model_dump()
+            state["setup"]["schema"] = schema
+            return "Your schema includes " + ", ".join(
+                f["label"] for f in schema["fields"]
+            ) + ". Add more fields or document counts, or say ‘review schema’.", None
+        return draft(state, schema, active["organization"])
+    key = secrets.token_hex(16)
+    state["setup"] = {"id": key, "schema": DEFAULT_CONFIG, "organization": None}
+    return "Who should receive the owner invitation?", {"type": "owner_invite", "id": key}

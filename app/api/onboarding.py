@@ -71,6 +71,10 @@ def permit(user, *roles):
         raise HTTPException(403, "This action is unavailable for your role.")
 
 
+def manager(user):
+    permit(user, "hr_admin")
+
+
 def staff(user):
     permit(user, "owner", "hr_admin")
 
@@ -232,7 +236,7 @@ def list_admins(q: str = "", user=Depends(current_user)):
 
 @router.post("/employees")
 def add(body: EmployeeInput, user=Depends(write_access)):
-    staff(user)
+    manager(user)
     config = invite_config()
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
@@ -243,7 +247,7 @@ def add(body: EmployeeInput, user=Depends(write_access)):
 
 @router.post("/import/preview")
 def preview(request: Request, file: UploadFile = File(...), user=Depends(write_access)):
-    staff(user)
+    manager(user)
     limit = request.app.state.settings.max_upload_bytes
     with file.file:
         content = file.file.read(limit + 1)
@@ -258,7 +262,7 @@ def preview(request: Request, file: UploadFile = File(...), user=Depends(write_a
 
 @router.post("/import")
 def import_people(body: ImportRows, user=Depends(write_access)):
-    staff(user)
+    manager(user)
     config = invite_config()
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
@@ -270,7 +274,7 @@ def import_people(body: ImportRows, user=Depends(write_access)):
 
 @router.post("/employees/{eid}/resend")
 def resend(eid: str, user=Depends(write_access)):
-    staff(user)
+    manager(user)
     config = invite_config()
     password = secrets.token_urlsafe(21)
     with connection() as db:
@@ -369,7 +373,7 @@ def own_revisions(user=Depends(current_user)):
 
 @router.post("/employees/{eid}/fields")
 def revise_fields(eid: str, body: FieldRevision, user=Depends(write_access)):
-    permit(user,"employee","owner","hr_admin")
+    manager(user)
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         person = employees.get_employee(db, eid)
@@ -403,7 +407,7 @@ def revise_fields(eid: str, body: FieldRevision, user=Depends(write_access)):
 
 @router.post("/employees/{eid}/name-review")
 def review_name(eid: str, body: NameReview, user=Depends(write_access)):
-    staff(user)
+    manager(user)
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         person = employees.get_employee(db, eid)
@@ -436,7 +440,7 @@ def detail(eid: str, user=Depends(current_user)):
 
 def staff_edit(eid: str, body: UpdateEmployee, user):
     """Update the employee record and its linked login in one transaction."""
-    staff(user)
+    manager(user)
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         previous = employees.get_employee(db, eid)
@@ -448,7 +452,7 @@ def staff_edit(eid: str, body: UpdateEmployee, user):
             ).fetchone():
                 raise HTTPException(409, "An account already exists for that email.")
             db.execute(
-                "UPDATE users SET name=?,email=? WHERE id=?",
+                "UPDATE users SET name=?,email=?,account_version=account_version+1 WHERE id=?",
                 (edited["name"], edited["email"], previous["user_id"]),
             )
             if previous["email"] != edited["email"]:
@@ -467,29 +471,8 @@ def profile(user=Depends(current_user)):
 
 @router.put("/me")
 def edit(body: Contact, user=Depends(write_access)):
-    permit(user, "employee")
-    with connection() as db:
-        db.execute("BEGIN IMMEDIATE")
-        person = own(db, user)
-        if body.version is not None and body.version != person["version"]:
-            raise HTTPException(409,"The form changed. Refresh before editing.")
-        if person["status"] == "onboarded":
-            if body.name != person["name"]:
-                raise HTTPException(422, "After onboarding, you can only update your phone number.")
-            phone = body.phone
-            db.execute("UPDATE employees SET phone=?,version=version+1 WHERE id=?", (phone, person["id"]))
-            audit(db, person["id"], user["id"], "phone_updated")
-            updated = own(db, user)
-        else:
-            if person["status"] == "submitted":
-                db.execute("UPDATE employees SET status='draft' WHERE id=?", (person["id"],))
-            updated = employees.update_employee(db, person["id"], person["version"], body.model_dump(include={"name","phone"}), user)
-            db.execute("UPDATE users SET name=? WHERE id=?", (updated["name"], user["id"]))
-        changes = [{"field": k, "before": person[k], "after": updated[k]} for k in ("name", "phone") if person[k] != updated[k]]
-        if changes:
-            audit(db, person["id"], user["id"], "profile_revised", json.dumps({"changes": changes, "before": {k:person[k] for k in ("name","email","phone")}, "after": {k:updated[k] for k in ("name","email","phone")}}))
-    index_employee(person["id"])
-    return updated
+    permit(user,"employee")
+    raise HTTPException(403,"Send a change request to HR. Your details change after HR approval.")
 
 
 @router.post("/me/documents")
@@ -551,7 +534,7 @@ def submit(body: VersionInput, user=Depends(write_access)):
 
 @router.post("/employees/{eid}/{action}")
 def decision(eid: str, action: str, body: VersionInput, user=Depends(write_access)):
-    staff(user)
+    manager(user)
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         person = employees.get_employee(db, eid)

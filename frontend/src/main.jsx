@@ -115,6 +115,7 @@ function App() {
     [fresh, setFresh] = useState(-1);
   const [drag, setDrag] = useState(false),
     [orgs, setOrgs] = useState(null);
+  const [requestForm, setRequestForm] = useState(false);
   const input = useRef(),
     scroll = useRef(),
     textarea = useRef(),
@@ -161,15 +162,6 @@ function App() {
       );
     else
       current = await request("/api/conversations", { ...opt, method: "POST" });
-    if (details.user.role === "owner" && !current.messages.length)
-      current = await request("/api/conversations/" + current.id + "/turn", {
-        ...opt,
-        method: "POST",
-        body: {
-          text: "Configure onboarding",
-          organization_id: details.user.tenant_id,
-        },
-      });
     setThread(current);
   }
   useEffect(() => {
@@ -210,6 +202,7 @@ function App() {
       setPending(text);
       nearBottom.current = true;
       setPrompt("");
+      setRequestForm(false);
       const result = await api("/api/conversations/" + thread.id + "/turn", {
         method: "POST",
         body: { text, ...extra },
@@ -230,6 +223,10 @@ function App() {
   }, [thread, pending]);
   function chooseFile(selected) {
     if (!selected) return;
+    if (role === "owner") {
+      setError("HR adds employees and the super admin configures the schema.");
+      return;
+    }
     const allowed = employee ? /\.(pdf|png|jpe?g|webp)$/i : /\.xlsx?$/i;
     if (!allowed.test(selected.name)) {
       setError(
@@ -273,14 +270,24 @@ function App() {
       setFresh(-1);
     });
   }
-  const ownerSetup = () =>
-    send("Configure onboarding", { organization_id: session.user.tenant_id });
+  const oversight = [
+    [
+      "View submissions",
+      Users,
+      () => send("Show submissions", { action: "submissions" }),
+    ],
+    [
+      "Employee requests",
+      CheckCheck,
+      () => send("Show requests", { action: "requests" }),
+    ],
+  ];
   const actions =
     role === "super_admin"
       ? [
           ["Invite owner", UserPlus, () => send("Invite owner")],
           [
-            "Configure organization",
+            "Configure company",
             Settings2,
             () =>
               perform(async () => {
@@ -288,59 +295,75 @@ function App() {
                 setMenu(false);
               }),
           ],
+          [
+            "Company accounts",
+            Users,
+            () => send("Show accounts", { action: "accounts" }),
+          ],
         ]
-      : employee
+      : role === "owner"
         ? [
-            ["Upload document", Paperclip, () => input.current.click()],
             [
-              "My profile & checklist",
-              ShieldCheck,
-              () => send("My checklist", { action: "profile" }),
-            ],
-            [
-              "Submit for review",
-              CheckCheck,
-              () => send("Submit for review", { action: "submit" }),
-            ],
-          ]
-        : [
-            [
-              "Add employee",
+              "Appoint HR admin",
               UserPlus,
-              () => send("Add employee", { action: "add" }),
+              () => send("Appoint HR", { action: "appoint" }),
             ],
-            ["Upload employee list", Upload, () => input.current.click()],
             [
-              "View submissions",
+              "HR team",
               Users,
-              () => send("Show submissions", { action: "submissions" }),
+              () => send("Show HR list", { action: "hr_list" }),
             ],
             [
-              "Review documents",
-              ShieldCheck,
-              () => send("Review documents", { action: "review" }),
+              "Manage HR accounts",
+              Settings2,
+              () => send("Show accounts", { action: "accounts" }),
             ],
-            [
-              "Export master sheet",
-              FileText,
-              () => send("Export master Excel", { action: "export" }),
-            ],
-            ...(role === "owner"
-              ? [
-                  [
-                    "Invite HR admin",
-                    UserPlus,
-                    () => send("Appoint HR", { action: "appoint" }),
-                  ],
-                  [
-                    "HR team",
-                    Users,
-                    () => send("Show HR list", { action: "hr_list" }),
-                  ],
-                  ["Configure onboarding", Settings2, ownerSetup],
-                ]
-              : []),
-          ];
+            ...oversight,
+          ]
+        : employee
+          ? [
+              ["Upload document", Paperclip, () => input.current.click()],
+              [
+                "My profile & checklist",
+                ShieldCheck,
+                () => send("My checklist", { action: "profile" }),
+              ],
+              ["Request HR permission", CheckCheck, () => setRequestForm(true)],
+              [
+                "My requests",
+                FileText,
+                () => send("My requests", { action: "requests" }),
+              ],
+              [
+                "Submit for review",
+                CheckCheck,
+                () => send("Submit for review", { action: "submit" }),
+              ],
+            ]
+          : [
+              [
+                "Add employee",
+                UserPlus,
+                () => send("Add employee", { action: "add" }),
+              ],
+              ["Upload employee list", Upload, () => input.current.click()],
+              [
+                "Manage employee accounts",
+                Settings2,
+                () => send("Show accounts", { action: "accounts" }),
+              ],
+              ...oversight,
+              [
+                "Review documents",
+                ShieldCheck,
+                () => send("Review documents", { action: "review" }),
+              ],
+              [
+                "Export master sheet",
+                FileText,
+                () => send("Export master Excel", { action: "export" }),
+              ],
+            ];
   if (loading)
     return (
       <div className="app-loading">
@@ -378,7 +401,9 @@ function App() {
       ? ["Invite an owner"]
       : employee
         ? ["My checklist", "Upload a document"]
-        : ["Add an employee", "Show submissions", "Find an employee"];
+        : role === "owner"
+          ? ["Appoint HR admin", "Show submissions", "Show requests"]
+          : ["Add an employee", "Show submissions", "Find an employee"];
   const messages = thread?.messages || [];
   return (
     <div className="app">
@@ -547,6 +572,45 @@ function App() {
           )}
         </div>
         <footer className="composer-region">
+          {requestForm && (
+            <section className="result-card request-compose">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = formValues(e.currentTarget);
+                  send("Request HR permission", {
+                    action: "request_hr",
+                    payload: { message: v.message, fields: {} },
+                  });
+                }}
+              >
+                <div className="card-heading">
+                  <h3>Ask HR</h3>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Close request form"
+                    onClick={() => setRequestForm(false)}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <textarea
+                  name="message"
+                  aria-label="Request to HR"
+                  placeholder="Describe the permission or help you need…"
+                  minLength={3}
+                  maxLength={2000}
+                  required
+                />
+                <button className="btn primary" disabled={busy}>
+                  Review request
+                  <ArrowRight size={15} />
+                </button>
+              </form>
+            </section>
+          )}
+
           {orgs && (
             <section className="organization-picker">
               <div className="card-heading">
@@ -848,6 +912,50 @@ function Result({ data, active, role, busy, fields, send, choose }) {
     </div>
   );
   switch (data.type) {
+    case "accounts":
+      return (
+        <Card>
+          <div className="card-heading">
+            <Users size={17} />
+            <h3>Company accounts</h3>
+          </div>
+          {data.accounts?.length ? (
+            data.accounts.map((a) => (
+              <AccountCard
+                key={a.id + ":" + a.revision}
+                account={a}
+                busy={busy}
+                send={send}
+              />
+            ))
+          ) : (
+            <p className="muted">No accounts found.</p>
+          )}
+        </Card>
+      );
+    case "requests":
+      return (
+        <Card>
+          <div className="card-heading">
+            <CheckCheck size={17} />
+            <h3>Employee requests</h3>
+          </div>
+          {data.requests?.length ? (
+            data.requests.map((r) => (
+              <RequestCard
+                key={r.id + ":" + r.version}
+                item={r}
+                role={role}
+                busy={busy}
+                send={send}
+              />
+            ))
+          ) : (
+            <p className="muted">No requests yet.</p>
+          )}
+        </Card>
+      );
+
     case "owner_invite":
       return active ? (
         <InlineForm
@@ -1278,7 +1386,7 @@ function Person({ person, role, busy, send }) {
       {role === "employee" && (
         <>
           <Btn disabled={busy} onClick={() => setEditing(!editing)}>
-            Edit my details
+            Request a correction
           </Btn>
           {editing && (
             <form
@@ -1286,7 +1394,18 @@ function Person({ person, role, busy, send }) {
               onSubmit={(e) => {
                 e.preventDefault();
                 const v = formValues(e.currentTarget);
-                send("Change my name to " + v.name + ", phone to " + v.phone);
+                const changes = Object.fromEntries(
+                  Object.entries(v).filter(
+                    ([k, value]) => value !== String(person[k] ?? ""),
+                  ),
+                );
+                send("Request a profile correction", {
+                  action: "request_hr",
+                  payload: {
+                    message: "Please review my contact details.",
+                    fields: changes,
+                  },
+                });
               }}
             >
               <Field
@@ -1301,37 +1420,41 @@ function Person({ person, role, busy, send }) {
                 defaultValue={person.phone}
                 required
               />
+              <Field
+                name="email"
+                type="email"
+                label="Email address"
+                defaultValue={person.email}
+                required
+              />
               <button className="btn primary" disabled={busy}>
-                Review changes
+                Review request
               </button>
             </form>
           )}
         </>
       )}
-      {["owner", "hr_admin"].includes(role) &&
-        person.status === "submitted" && (
-          <div className="card-actions">
-            <Btn
-              primary
-              disabled={busy}
-              onClick={() =>
-                send("Onboard " + person.email, { action: "onboard" })
-              }
-            >
-              <Check size={15} />
-              Approve onboarding
-            </Btn>
-            <Btn
-              disabled={busy}
-              onClick={() =>
-                send("Reopen " + person.email, { action: "reopen" })
-              }
-            >
-              Request correction
-            </Btn>
-          </div>
-        )}
-      {["owner", "hr_admin"].includes(role) && (
+      {role === "hr_admin" && person.status === "submitted" && (
+        <div className="card-actions">
+          <Btn
+            primary
+            disabled={busy}
+            onClick={() =>
+              send("Onboard " + person.email, { action: "onboard" })
+            }
+          >
+            <Check size={15} />
+            Approve onboarding
+          </Btn>
+          <Btn
+            disabled={busy}
+            onClick={() => send("Reopen " + person.email, { action: "reopen" })}
+          >
+            Request correction
+          </Btn>
+        </div>
+      )}
+      {role === "hr_admin" && (
         <details className="quiet-details">
           <summary>More actions</summary>
           <Btn
@@ -1492,6 +1615,152 @@ function SchemaForm({ data, send, busy, cancel }) {
         </div>
       </form>
     </Card>
+  );
+}
+function AccountCard({ account: a, busy, send }) {
+  const [edit, setEdit] = useState(false);
+  return (
+    <section className="account-record">
+      <div className="employee-row">
+        <span className="person-avatar">{a.name[0]}</span>
+        <span>
+          <strong>{a.name}</strong>
+          <small>
+            {a.email} · {ROLES[a.role]}
+          </small>
+        </span>
+        <Badge
+          status={
+            a.disabled
+              ? "disabled"
+              : a.must_change
+                ? "password_change_required"
+                : "active"
+          }
+        />
+      </div>
+      <div className="account-actions">
+        <Btn disabled={busy} onClick={() => setEdit(!edit)}>
+          Correct details
+        </Btn>
+        {a.must_change && !a.disabled && (
+          <Btn
+            disabled={busy}
+            onClick={() =>
+              send("Resend invitation", {
+                action: "account_resend",
+                payload: { id: a.id },
+              })
+            }
+          >
+            Resend invitation
+          </Btn>
+        )}
+        <Btn
+          disabled={busy}
+          onClick={() =>
+            send(a.disabled ? "Restore account" : "Disable account", {
+              action: a.disabled ? "account_enable" : "account_disable",
+              payload: { id: a.id, revision: a.revision },
+            })
+          }
+        >
+          {a.disabled ? "Restore access" : "Disable access"}
+        </Btn>
+      </div>
+      {edit && (
+        <form
+          className="form-fields compact-edit"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = formValues(e.currentTarget);
+            const fields = Object.fromEntries(
+              Object.entries(v).filter(([k, value]) => value !== a[k]),
+            );
+            if (Object.keys(fields).length)
+              send("Correct account details", {
+                action: "account_change",
+                payload: { id: a.id, revision: a.revision, fields },
+              });
+          }}
+        >
+          <Field label="Full name" name="name" defaultValue={a.name} required />
+          <Field
+            label="Email address"
+            name="email"
+            type="email"
+            defaultValue={a.email}
+            required
+          />
+          <button className="btn primary" disabled={busy}>
+            Review correction
+          </button>
+        </form>
+      )}
+    </section>
+  );
+}
+function RequestCard({ item: r, role, busy, send }) {
+  return (
+    <section className="request-record">
+      <div className="card-heading">
+        <h3>{r.name || "Your request"}</h3>
+        <Badge status={r.status} />
+      </div>
+      <p className="muted">{r.message}</p>
+      {Object.entries(r.fields || {}).map(([k, value]) => (
+        <p className="request-value" key={k}>
+          {k} · {String(r.before_values?.[k] ?? "")} → {String(value)}
+        </p>
+      ))}
+      {r.note && <p className="muted">HR decision · {r.note}</p>}
+      {r.status === "pending" && role === "employee" && (
+        <Btn
+          disabled={busy}
+          onClick={() =>
+            send("Cancel my request", {
+              action: "cancel_request",
+              payload: { id: r.id },
+            })
+          }
+        >
+          Cancel request
+        </Btn>
+      )}
+      {r.status === "pending" && role === "hr_admin" && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = formValues(e.currentTarget);
+            send("Review HR decision", {
+              action: e.nativeEvent.submitter.value,
+              payload: { id: r.id, note: v.note },
+            });
+          }}
+        >
+          <textarea
+            name="note"
+            aria-label="HR decision reason"
+            placeholder="Reason for your decision…"
+            minLength={3}
+            maxLength={1000}
+            required
+          />
+          <div className="card-actions">
+            <button
+              className="btn primary"
+              value="approve_request"
+              disabled={busy}
+            >
+              Approve request
+            </button>
+            <button className="btn" value="reject_request" disabled={busy}>
+              Reject request
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 function DocumentPreview({ doc, onClose }) {

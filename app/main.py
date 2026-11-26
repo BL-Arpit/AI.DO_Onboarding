@@ -40,10 +40,12 @@ def create_app():
             yield
             return
         initialize()
+        from app.api.administration import initialize as initialize_administration
         if not os.getenv("SUPER_ADMIN_EMAIL") or os.getenv("BOOTSTRAP_PASSWORD"):
             bootstrap()
         bootstrap_test_hr()
         bootstrap_super_admin()
+        initialize_administration()
         app.state.pipeline = DocumentPipeline(settings)
         app.state.pipeline.ready()
         yield
@@ -83,9 +85,9 @@ def create_app():
         www_redirect=False,
     )
     app.add_middleware(RequestSecurity, settings=settings)
-    from app.api import auth, conversations, onboarding, organizations
+    from app.api import auth, conversations, onboarding, organizations, administration
 
-    for router in (auth.router, onboarding.router, conversations.router, organizations.router):
+    for router in (auth.router, onboarding.router, conversations.router, organizations.router, administration.router):
         app.include_router(router)
 
     @app.exception_handler(HTTPException)

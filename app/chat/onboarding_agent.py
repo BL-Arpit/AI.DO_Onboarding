@@ -19,6 +19,8 @@ Action = Literal[
     "add", "import", "submissions", "review", "status", "profile", "submit", "appoint",
     "help", "upload", "update", "offboard", "onboard", "reopen", "resend", "export",
     "confirm", "cancel", "hr_list",
+    "accounts","account_change","account_disable","account_enable","account_resend",
+    "requests","request_hr","approve_request","reject_request","cancel_request",
 ]
 
 STAFF = {"add", "import", "submissions", "review", "status", "offboard", "onboard",
@@ -50,6 +52,7 @@ class Turn(BaseModel):
     confirmation_id: str | None = Field(default=None, max_length=32)
     organization_id: str | None = Field(default=None,max_length=40)
     setup: dict | None = None
+    payload: dict | None = None
     draft_id: str | None = Field(default=None, max_length=32)
 
 
@@ -270,6 +273,9 @@ def _execute(thread, state, turn, user):
     state.pop("pending")
     conversations.consume_confirmation(thread)
     operation, values = pending["operation"], pending["values"]
+    if operation in {"account_change","account_resend","request_hr","review_request","cancel_request"}:
+        from app.chat.administration_agent import execute
+        return execute(operation,values,user)
     if operation == "add":
         result = onboarding.add(EmployeeInput.model_validate(values), user=user)
         state["employee_id"] = result["invitations"][0]["id"]
@@ -284,8 +290,11 @@ def _execute(thread, state, turn, user):
         person = onboarding.submit(VersionInput.model_validate(values), user=user)
         return "Your documents have been submitted for review.", {"type": "profile", "profile": _person_card(person)}
     if operation == "profile_update":
-        person = onboarding.edit(onboarding.Contact.model_validate(values), user=user)
-        return "Your profile was updated.", {"type": "profile", "profile": _person_card(person)}
+        from app.api.administration import RequestInput,create_request
+        person = onboarding.profile(user=user)
+        changes={k:v for k,v in values.items() if k in {"name","phone"} and v!=person[k]}
+        result=create_request(RequestInput(message="Please approve my profile correction.",fields=changes),user)
+        return "Your correction is pending HR approval.",{"type":"requests","requests":[result]}
     if operation == "update":
         change = EmployeeChange.model_validate(values)
         body = UpdateEmployee(version=change.version, fields=change.fields)
@@ -346,6 +355,8 @@ def _legacy_reply_to(thread, state, turn, user):
     intent = _intent(turn)
     if intent in STAFF:
         onboarding.staff(user)
+    if intent in {"add","import","update","offboard","onboard","reopen","resend"}:
+        onboarding.manager(user)
     if intent == "confirm":
         return _execute(thread, state, turn, user)
     if intent == "cancel":
@@ -358,12 +369,14 @@ def _legacy_reply_to(thread, state, turn, user):
         state.pop("draft", None)
         return "Okay, I cancelled the draft or pending action.", None
     if intent == "add":
+        onboarding.manager(user)
         return _add_employee(turn, state)
     if state.get("draft") and turn.action is None and intent in {"help", "update"}:
         return _add_employee(turn, state)
     if intent == "update":
         return _change(turn, user, state)
     if intent == "import":
+        onboarding.manager(user)
         return "Attach an Excel workbook with Name, Email and Phone. I’ll check the rows before you confirm the import.", None
     if intent == "export":
         return "Download your master employee workbook.", {"type": "export", "href": "/api/onboarding/export"}
@@ -411,7 +424,7 @@ def _legacy_reply_to(thread, state, turn, user):
 
 
 def attach_to(request, state, file, document_type, user):
-    if user["role"] == "super_admin" or (user["role"] == "owner" and state.get("setup",{}).get("organization")):
+    if user["role"] == "super_admin":
         if not state.get("setup",{}).get("organization"):
             raise HTTPException(422,"Invite the owner before uploading the employee schema.")
         from app.chat.customer_setup import draft, from_sheet
@@ -440,9 +453,24 @@ def attach_to(request, state, file, document_type, user):
 
 def reply_to(thread, state, turn, user):
     """Free text goes to SmolLM; explicit UI and confirmation actions stay server-owned."""
-    if user["role"] == "super_admin" or (user["role"] == "owner" and (turn.organization_id or state.get("setup",{}).get("organization"))):
+    from app.chat.administration_agent import respond as administration_reply
+    handled=administration_reply(state,turn,user)
+    if handled is not None:return handled
+    if user["role"]!="super_admin":
+        if turn.organization_id or turn.setup:
+            raise HTTPException(403,"Your company super admin configures onboarding.")
+        state.pop("setup",None)
+        state.pop("schema_chat",None)
+    if user["role"]=="super_admin":
+        pending=state.get("pending",{})
+        if pending.get("operation") in {"account_change","account_resend"} and (
+            turn.action=="confirm" or turn.text.lower().strip()=="confirm"):
+            return _execute(thread,state,turn,user)
+        if pending.get("operation") in {"account_change","account_resend"} and turn.text.lower().strip()=="cancel":
+            state.pop("pending",None)
+            return "Cancelled.",None
         from app.chat.customer_setup import respond
-        return respond(thread, state, turn, user)
+        return respond(thread,state,turn,user)
     confirmation = turn.text.lower().strip().rstrip(".!?")
     if turn.action is None and confirmation not in {
         "confirm", "yes", "yes, confirm", "cancel", "no", "never mind"

@@ -8,7 +8,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.auth import current_user, write_access
 from app.repositories.database import connection
 from app.schemas.employee import EmployeeInput
-from app.services.tenant_metadata import DEFAULT_CONFIG, TenantSchema, configuration, create_tenant, update_schema
+from app.services.tenant_metadata import (
+    DEFAULT_CONFIG,
+    TenantSchema,
+    configuration,
+    create_tenant,
+    update_schema,
+)
 
 router = APIRouter(prefix="/api/organizations", tags=["Organization configuration"])
 
@@ -22,7 +28,9 @@ class InviteContact(BaseModel):
 class Provision(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=160)
-    schema_definition: TenantSchema = Field(default_factory=lambda: TenantSchema.model_validate(DEFAULT_CONFIG))
+    schema_definition: TenantSchema = Field(
+        default_factory=lambda: TenantSchema.model_validate(DEFAULT_CONFIG)
+    )
     owner: InviteContact
     hr: InviteContact | None = None
 
@@ -50,7 +58,9 @@ def list_organizations(user=Depends(current_user)):
     with connection() as db:
         return [
             dict(r)
-            for r in db.execute("SELECT id,name,version,created FROM tenants ORDER BY created")
+            for r in db.execute(
+                "SELECT id,name,version,created FROM tenants WHERE id=?", (user["tenant_id"],)
+            )
         ]
 
 
@@ -64,7 +74,15 @@ def provision(body: Provision, user=Depends(write_access)):
     invited = []
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
+        account = db.execute("SELECT tenant_id FROM users WHERE id=?", (user["id"],)).fetchone()
+        existing_company = db.execute(
+            "SELECT 1 FROM tenant_schema_versions WHERE actor=? AND version=1 AND tenant_id<>'default'",
+            (user["id"],),
+        ).fetchone()
+        if account["tenant_id"] != "default" or existing_company:
+            raise HTTPException(409, "This super admin is already assigned to a company.")
         tid = create_tenant(db, body.name, body.schema_definition, user["id"])
+        db.execute("UPDATE users SET tenant_id=? WHERE id=?", (tid, user["id"]))
         for contact, role in people:
             email = EmployeeInput.email_clean(contact.email)
             password = secrets.token_urlsafe(15)
@@ -75,9 +93,9 @@ def provision(body: Provision, user=Depends(write_access)):
 
 @router.put("/{tenant_id}/schema")
 def configure(tenant_id: str, body: SchemaUpdate, user=Depends(write_access)):
-    if user["role"] != "super_admin":
-        if user["role"] != "owner" or user["must_change"] or tenant_id != user["tenant_id"]:
-            raise HTTPException(403,"Only your organization's owner can configure its schema.")
+    super_admin(user)
+    if tenant_id != user["tenant_id"]:
+        raise HTTPException(404, "Organization unavailable.")
     return update_schema(
         tenant_id, body.schema_definition, body.expected_version, user["id"], body.rename_fields
     )
