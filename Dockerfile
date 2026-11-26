@@ -1,3 +1,10 @@
+FROM node:22-slim AS frontend
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BIND_HOST=0.0.0.0 OMP_THREAD_LIMIT=1 DOCUMENT_MODE=google_vision
 WORKDIR /project
@@ -16,6 +23,8 @@ RUN if [ "$INSTALL_GGUF" = "1" ]; then \
       apt-get purge -y --auto-remove build-essential cmake && rm -rf /var/lib/apt/lists/*; \
     fi
 COPY app ./app
+COPY --from=frontend /app/static/react ./app/static/react
+COPY --from=frontend /app/static/react/index.html ./app/static/workspace.html
 COPY config ./config
 COPY model ./model
 COPY run.py ./
