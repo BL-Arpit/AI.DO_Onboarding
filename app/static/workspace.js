@@ -27,6 +27,10 @@ let previewUrl = null;
 let previewSequence = 0;
 let pendingFile = null;
 let busy = false;
+let animateReply = false;
+let revealController = null;
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
 
 function node(tag, text, className) {
   const item = document.createElement(tag);
@@ -109,6 +113,7 @@ async function perform(task, waiting = "") {
     }
   } finally {
     busy = false;
+    document.querySelector(".thinking-turn")?.remove();
     updateControls();
   }
 }
@@ -164,6 +169,12 @@ async function openSession(details) {
   const result = await api("/api/conversations");
   const saved = Array.isArray(result) ? result : result.conversations || result.threads || [];
   if (saved.length) setActive(await api("/api/conversations/" + encodeURIComponent(saved[0].id)));
+  if (session.user.role === "owner" && !activeThread?.messages?.length) {
+    const id = await ensureThread();
+    const result = await api("/api/conversations/" + id + "/turn", {
+      method:"POST",body:{text:"Configure onboarding",organization_id:session.user.tenant_id}});
+    setActive(result);
+  }
 }
 
 function togglePopover(toggleId, panelId, open) {
@@ -452,6 +463,17 @@ function renderResult(data, index) {
     ? Boolean(data.id && data.id === activeThread[stateKey] && index === latest)
     : index === activeThread.messages.length - 1;
   switch (data.type) {
+    case "owner_invite":
+      if (activeThread.active_setup !== data.id || latest !== index) return null;
+      renderOwnerInvite(container,data);
+      break;
+    case "schema_choice":
+      if (index !== activeThread.messages.length - 1) return null;
+      for (const invitation of data.invitations || []) container.append(node("p",
+        invitation.email + (invitation.email_accepted ? " · Invitation sent" : " · Email delivery failed")));
+      container.append(button("Upload employee sheet", chooseFile, "primary"),
+        button("Create schema in chat", () => sendTurn("Create schema in chat")));
+      break;
     case "setup":
       if (activeThread.active_setup !== data.id || latest !== index) return null;
       renderSetup(container, data);
@@ -511,6 +533,7 @@ function renderResult(data, index) {
 function renderThread() {
   const messages = activeThread?.messages || [];
   const list = elements.messages;
+  revealController?.abort();
   list.replaceChildren();
   list.hidden = !messages.length;
   elements.welcome.hidden = Boolean(messages.length);
@@ -523,20 +546,27 @@ function renderThread() {
     const mine = message.role === "user";
     const turn = node("article", undefined, "turn " + (mine ? "user" : "assistant"));
     if (!mine) turn.append(node("p", "Onboarding Agent", "turn-label"));
-    turn.append(node("p", message.text, "turn-text"));
+    const text = node("p", message.text, "turn-text");
+    turn.append(text);
+    if (animateReply && !mine && index === messages.length - 1) {
+      turn.classList.add("message-enter");
+      if (!reducedMotion.matches) revealText(text, message.text);
+    }
     if (message.data) {
       const result = renderResult(message.data, index);
       if (result) turn.append(result);
     }
     list.append(turn);
   });
-  elements.stream.scrollTop = elements.stream.scrollHeight;
+  animateReply = false;
+  scrollToLatest();
 }
 
 function sendTurn(text, options = {}, clearPrompt = false) {
   return perform(async () => {
     closePopovers();
     const id = await ensureThread();
+    showPending(text);
     const result = await api("/api/conversations/" + encodeURIComponent(id) + "/turn", {
       method: "POST", body: { text, ...options },
     });
@@ -544,8 +574,11 @@ function sendTurn(text, options = {}, clearPrompt = false) {
       elements.prompt.value = "";
       resizePrompt();
     }
+    animateReply = true;
     setActive(result);
-  }, "Working on your request…");
+    if (result.active_setup === null && session.user.role === "owner")
+      customerFields = (await api("/api/organizations/current")).fields || [];
+  }, "");
 }
 
 function buildActions() {
@@ -554,7 +587,7 @@ function buildActions() {
   plus.replaceChildren();
   suggestions.replaceChildren();
   const employee = session.user.role === "employee";
-  const actions = session.user.role === "super_admin" ? [["Configure customer", "profile", () => sendTurn("Configure customer")], ["Use customer workbook", "sheet", chooseFile], ["Edit organization", "profile", selectOrganization]] : employee ? [
+  const actions = session.user.role === "super_admin" ? [["Invite owner", "profile", () => sendTurn("Invite owner")], ["Edit organization", "profile", selectOrganization]] : employee ? [
     ["Upload document", "paperclip", chooseFile],
     ["My onboarding checklist", "profile", () => sendTurn("My checklist", { action: "profile" })],
     ["Submit for review", "check", () => sendTurn("Submit for review", { action: "submit" })],
@@ -566,6 +599,7 @@ function buildActions() {
     ["Export master Excel", "download", () => sendTurn("Export master Excel", { action: "export" })],
   ];
   if (session.user.role === "owner") {
+    actions.push(["Configure onboarding", "profile", () => sendTurn("Configure onboarding", {organization_id:session.user.tenant_id})]);
     actions.push(["HR team", "profile", () => sendTurn("Show HR list", { action: "hr_list" })]);
     actions.push(["Appoint HR admin", "profile", () => sendTurn("Appoint HR", { action: "appoint" })]);
   }
@@ -628,7 +662,9 @@ function uploadFile() {
     const result = await api("/api/conversations/" + encodeURIComponent(id) + "/attachment", {
       method: "POST", body,
     });
+    animateReply = true;
     setActive(result);
+    customerFields = (await api("/api/organizations/current")).fields || [];
     clearFile();
     const record = activeThread.messages.at(-1)?.data?.profile;
     if (session.user.role === "employee" && record?.documents?.length)
@@ -817,4 +853,53 @@ async function selectOrganization() {
     for (const org of orgs) panel.append(button(org.name, () => sendTurn("Configure " + org.name, {organization_id:org.id}), "action-item"));
     togglePopover("action-toggle","actions",true);
   });
+}
+
+function scrollToLatest() {
+  elements.stream.scrollTo({top:elements.stream.scrollHeight,behavior:reducedMotion.matches ? "instant" : "smooth"});
+}
+function showPending(text) {
+  revealController?.abort();
+  elements.welcome.hidden = true;
+  elements.messages.hidden = false;
+  document.querySelector(".pending-message")?.remove();
+  document.querySelector(".thinking-turn")?.remove();
+  const user = node("article",undefined,"turn user message-enter pending-message");
+  user.append(node("p",text,"turn-text"));
+  const thinking = node("article",undefined,"turn assistant thinking-turn");
+  thinking.setAttribute("role","status"); thinking.setAttribute("aria-label","AI.DO is thinking");
+  const dots=node("span",undefined,"thinking-dots");
+  for (let i=0;i<3;i++) dots.append(node("i"));
+  thinking.append(dots,node("span","Thinking…","thinking-label"));
+  elements.messages.append(user,thinking); scrollToLatest();
+}
+async function revealText(target,text) {
+  const controller = new AbortController(); revealController = controller;
+  target.setAttribute("aria-label",text);
+  const words = text.match(/\S+\s*/g) || [];
+  target.textContent = "";
+  for (let i=0;i<words.length;i+=3) {
+    if (controller.signal.aborted) return;
+    target.textContent += words.slice(i,i+3).join("");
+    if (elements.stream.scrollHeight-elements.stream.scrollTop-elements.stream.clientHeight < 180) scrollToLatest();
+    await new Promise(resolve=>setTimeout(resolve,18));
+  }
+  target.textContent=text; target.removeAttribute("aria-label");
+}
+function renderOwnerInvite(container,data) {
+  const form=node("form",undefined,"employee-draft owner-invite");
+  form.append(node("h3","Invite the owner"),node("p","Send their login invitation. Set up the onboarding schema next.","draft-intro"));
+  for (const [name,label,type] of [["org","Company name","text"],["name","Owner name","text"],["email","Owner email","email"]]) {
+    const field=node("label",label,"draft-field"), input=node("input");
+    input.name=name;input.type=type;input.required=true;input.maxLength=name==="email" ? 254 : 120;
+    field.append(input);form.append(field);
+  }
+  const submit=node("button","Review invitation","primary");submit.type="submit";
+  form.append(submit,button("Cancel",()=>sendTurn("Cancel",{action:"cancel"})));
+  form.onsubmit=event=>{
+    event.preventDefault();
+    const v=Object.fromEntries(new FormData(form));
+    sendTurn("Invite "+v.name,{draft_id:data.id,setup:{name:v.org,owner:{name:v.name,email:v.email}}});
+  };
+  container.append(form);
 }

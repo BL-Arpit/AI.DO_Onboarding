@@ -37,16 +37,9 @@ def test_customer_setup_isolation_and_query(client, monkeypatch):
     assert client.get(url + "/" + thread).status_code == 404
     path = url + "/" + thread
     sheet = Path("examples/customer-onboarding.xlsx").read_bytes()
-    draft = engineer.post(path + "/attachment", files={"file": ("customer.xlsx", sheet)}).json()[
-        "messages"
-    ][-1]["data"]
-    schema = draft["schema"]
-    schema["fields"].append({"key": "region", "label": "Region", "type": "text", "required": True})
-    spec = {
-        "name": "Customer A",
-        "owner": {"name": "Owner A", "email": "owner-a@example.org"},
-        "schema_definition": schema,
-    }
+    draft = engineer.post(path + "/turn",json={"text":"Invite owner"}).json()["messages"][-1]["data"]
+    assert draft["type"] == "owner_invite" and "schema" not in draft
+    spec = {"name":"Customer A","owner":{"name":"Owner A","email":"owner-a@example.org"}}
     proposal = engineer.post(
         path + "/turn", json={"text": "Review invitation", "draft_id": draft["id"], "setup": spec}
     ).json()
@@ -68,6 +61,22 @@ def test_customer_setup_isolation_and_query(client, monkeypatch):
     )
     owner = login(client, spec["owner"]["email"], "new-owner-password")
     assert owner.post("/api/organizations", json=spec).status_code == 403
+    tid = owner.get("/api/auth/session").json()["user"]["tenant_id"]
+    owner_thread = owner.post(url).json()["id"]
+    owner_path = url+"/"+owner_thread
+    choice = owner.post(owner_path+"/turn",json={"text":"Configure onboarding","organization_id":tid}).json()
+    assert choice["messages"][-1]["data"]["type"] == "schema_choice"
+    owner.post(owner_path+"/turn",json={"text":"Create schema in chat"})
+    owner.post(owner_path+"/turn",json={"text":"region"})
+    reviewed = owner.post(owner_path+"/turn",json={"text":"review schema"}).json()["messages"][-1]["data"]
+    schema = reviewed["schema"]
+    schema["fields"][-1]["required"] = True
+    proposal = owner.post(owner_path+"/turn",json={"text":"Save schema","draft_id":reviewed["id"],
+        "setup":{"expected_version":1,"schema_definition":schema}}).json()
+    saved = owner.post(owner_path+"/turn",json={"text":"Confirm","confirmation_id":proposal["active_confirmation"]})
+    assert saved.status_code == 200, saved.text
+    assert owner.get("/api/organizations/current").json()["version"] == 2
+    assert client.put(f"/api/organizations/{tid}/schema",json={"expected_version":2,"schema_definition":schema}).status_code == 403
     person = {
         "name": "Karthik Reddy",
         "email": "karthik-a@example.org",
@@ -96,7 +105,7 @@ def test_customer_setup_isolation_and_query(client, monkeypatch):
         f"/api/organizations/{tid}/schema",
         json={
             "schema_definition": schema,
-            "expected_version": 1,
+            "expected_version": 2,
             "rename_fields": {"region": "territory"},
         },
     )

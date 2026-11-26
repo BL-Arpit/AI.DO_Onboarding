@@ -241,3 +241,60 @@ kbd { margin-left: auto; border-radius: 5px; color: var(--muted); background: va
 @media(max-width:760px){.document-drawer{width:100%}.review-open{margin-right:0}}
 
 .revised-value {background:#254235;color:#e2f3e9}
+
+/* Chat canvas inspired by the supplied Stitch layout. */
+:root {--page:#212121;--surface:#181818;--border:#333;--text:#ececec;--muted:#a5a5a5}
+.conversation-header {height:64px;padding:0 28px;border:0;background:#212121ed;backdrop-filter:blur(16px)}
+.agent-toggle {font-size:15px;font-weight:600;gap:10px}
+.agent-toggle::before {content:"AI.DO";font-size:18px;letter-spacing:-.7px;margin-right:12px;color:#fff}
+.header-account .account-text {font-size:12px}
+.avatar {background:#343541;border:1px solid #494949}
+.messages {width:min(768px,calc(100% - 48px));padding:24px 0 44px;margin:0 auto;gap:32px}
+.turn {max-width:100%;animation:none}
+.turn.user {align-self:flex-end;max-width:85%;background:#2f2f2f;border:0;border-radius:24px 6px 24px 24px;padding:14px 20px}
+.turn.assistant {position:relative;width:100%;padding:0 0 0 38px}
+.turn.assistant::before {content:"✧";position:absolute;left:0;top:1px;display:grid;place-items:center;width:26px;height:26px;border:1px solid #444;border-radius:50%;font-size:20px}
+.turn-label {display:none}
+.turn-text {font-size:15px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.result {margin-top:18px;background:#181818;border:1px solid #343434;border-radius:18px;padding:22px;box-shadow:0 1px 2px #0002}
+.result h3 {font-size:16px;font-weight:550;letter-spacing:-.2px;margin:0 0 14px}
+.result .person {border:0;padding:0;background:transparent}
+.result .person + .person {border-top:1px solid #333;padding-top:18px;margin-top:18px}
+.fields {font-size:13px}
+.fields dt {color:#999}
+.employee-draft {display:grid;gap:16px}
+.employee-draft label {font-size:12px;color:#aaa;display:grid;gap:8px}
+.employee-draft input:not([type=checkbox]),.employee-draft select,.review-form input,.name-review textarea {background:#242424;color:#eee;border:1px solid #3a3a3a;border-radius:10px;min-height:44px;padding:11px 13px;outline:0;width:100%;transition:border-color .18s,box-shadow .18s}
+.employee-draft input:focus,.review-form input:focus {border-color:#777;box-shadow:0 0 0 3px #ffffff07}
+.draft-intro {font-size:13px;line-height:1.65;color:#999;margin:0}
+.primary {background:#f5f5f5;color:#141414;border-radius:9px;font-size:13px;font-weight:550;padding:10px 17px;min-height:38px}
+.inline-action {border:1px solid #3c3c3c;border-radius:9px;color:#c9c9c9;padding:9px 13px;font-size:13px;margin:4px}
+button {transition:background .16s,color .16s,transform .16s,opacity .16s}
+button:hover:not(:disabled) {filter:brightness(1.1)}
+button:active:not(:disabled) {transform:scale(.98)}
+.composer-shell {width:min(768px,calc(100% - 40px));padding-bottom:24px;background:linear-gradient(transparent,#212121 25%)}
+.composer {background:#303030;border:1px solid #424242;border-radius:28px;padding:10px 13px;box-shadow:0 4px 18px #0002}
+.composer textarea {font-size:15px;line-height:1.6}
+.send {width:36px;height:36px;border-radius:50%;background:#fff;color:#181818}
+.suggestion {border:1px solid #3b3b3b;background:transparent;border-radius:24px;color:#aaa;padding:9px 15px;font-size:12px}
+.popover {animation:menu-in .16s ease-out;transform-origin:bottom left;box-shadow:0 12px 40px #0005}
+.document-drawer {background:#191919;animation:drawer-in .24s cubic-bezier(.2,.8,.2,1)}
+.review-open {transition:margin-right .24s}
+.document-image-wrap {border:1px solid #333;background:#121212;border-radius:12px;overflow:hidden;margin:18px 0}
+.document-image-wrap img {display:block;margin:0}
+.preview-pages {font-size:12px;color:#aaa;padding-top:16px}
+.review-form {padding:18px;background:#222;border:1px solid #333;border-radius:14px}
+.name-review {padding:16px 0;font-size:13px;line-height:1.7}
+.thinking-turn {display:flex;align-items:center;gap:10px;padding-top:5px!important;padding-bottom:10px!important}
+.thinking-label {font-size:13px;color:#9d9d9d}
+.thinking-dots {display:flex;gap:4px;align-items:center}
+.thinking-dots i {width:5px;height:5px;background:#bbb;border-radius:50%;animation:thinking 1.2s ease-in-out infinite}
+.thinking-dots i:nth-child(2) {animation-delay:.15s}
+.thinking-dots i:nth-child(3) {animation-delay:.3s}
+.message-enter {animation:message-in .22s ease-out!important}
+@keyframes thinking {0%,70%,100%{opacity:.3;transform:translateY(0)}35%{opacity:1;transform:translateY(-3px)}}
+@keyframes message-in {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes menu-in {from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes drawer-in {from{opacity:.4;transform:translateX(28px)}to{opacity:1;transform:none}}
+@media(max-width:680px){.conversation-header{padding:0 16px}.agent-toggle::before{margin-right:4px}.messages{width:calc(100% - 28px)}.turn.assistant{padding-left:30px}.result{padding:17px}.header-account .account-text{display:none}.document-drawer{padding:18px}.composer-shell{width:calc(100% - 24px)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

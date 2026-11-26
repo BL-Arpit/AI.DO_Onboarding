@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.auth import current_user, write_access
 from app.repositories.database import connection
 from app.schemas.employee import EmployeeInput
-from app.services.tenant_metadata import TenantSchema, configuration, create_tenant, update_schema
+from app.services.tenant_metadata import DEFAULT_CONFIG, TenantSchema, configuration, create_tenant, update_schema
 
 router = APIRouter(prefix="/api/organizations", tags=["Organization configuration"])
 
@@ -22,7 +22,7 @@ class InviteContact(BaseModel):
 class Provision(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=160)
-    schema_definition: TenantSchema
+    schema_definition: TenantSchema = Field(default_factory=lambda: TenantSchema.model_validate(DEFAULT_CONFIG))
     owner: InviteContact
     hr: InviteContact | None = None
 
@@ -75,7 +75,9 @@ def provision(body: Provision, user=Depends(write_access)):
 
 @router.put("/{tenant_id}/schema")
 def configure(tenant_id: str, body: SchemaUpdate, user=Depends(write_access)):
-    super_admin(user)
+    if user["role"] != "super_admin":
+        if user["role"] != "owner" or user["must_change"] or tenant_id != user["tenant_id"]:
+            raise HTTPException(403,"Only your organization's owner can configure its schema.")
     return update_schema(
         tenant_id, body.schema_definition, body.expected_version, user["id"], body.rename_fields
     )

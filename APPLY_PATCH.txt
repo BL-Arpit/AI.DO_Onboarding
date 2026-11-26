@@ -1,0 +1,7 @@
+Apply these six files over the AI_DO_Customer_Onboarding_Update build, preserving their paths. Commit and push to the branch Render deploys, then deploy the latest commit. No new environment variables or dependencies are required.
+
+Owner invitation asks for company name, owner name and email. After confirmation and email delivery, schema setup offers upload or chat. A new owner sees the same choice after signing in and changing their temporary password. Existing owners can use + > Configure onboarding. Upload accepts XLSX headers. Chat setup accepts comma-separated fields and document counts, followed by review schema. Publishing requires confirmation.
+
+UI follows the supplied Stitch design. Thinking dots indicate an outstanding request. Replies reveal progressively after the response arrives. This is a display animation, not token streaming from the server. Reduced-motion preferences disable animation. The document drawer and + menu have transitions.
+
+Validation: eight targeted backend tests passed, including invitation before schema, owner schema setup and cross-organization denial. JavaScript syntax and Python compilation passed. Browser rendering and live Render/Gmail delivery were not verified in this patch.

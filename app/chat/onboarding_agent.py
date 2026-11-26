@@ -411,9 +411,11 @@ def _legacy_reply_to(thread, state, turn, user):
 
 
 def attach_to(request, state, file, document_type, user):
-    if user["role"] == "super_admin":
+    if user["role"] == "super_admin" or (user["role"] == "owner" and state.get("setup",{}).get("organization")):
+        if not state.get("setup",{}).get("organization"):
+            raise HTTPException(422,"Invite the owner before uploading the employee schema.")
         from app.chat.customer_setup import draft, from_sheet
-        return draft(state, from_sheet(file, request.app.state.settings.max_upload_bytes))
+        return draft(state, from_sheet(file, request.app.state.settings.max_upload_bytes),state.get("setup",{}).get("organization"))
     if user["role"] == "employee":
         person = onboarding.document(request, file, document_type, user=user)
         return "Document received. Here’s your updated checklist.", {
@@ -438,7 +440,7 @@ def attach_to(request, state, file, document_type, user):
 
 def reply_to(thread, state, turn, user):
     """Free text goes to SmolLM; explicit UI and confirmation actions stay server-owned."""
-    if user["role"] == "super_admin":
+    if user["role"] == "super_admin" or (user["role"] == "owner" and (turn.organization_id or state.get("setup",{}).get("organization"))):
         from app.chat.customer_setup import respond
         return respond(thread, state, turn, user)
     confirmation = turn.text.lower().strip().rstrip(".!?")
