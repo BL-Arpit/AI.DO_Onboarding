@@ -100,6 +100,7 @@ def respond(thread, state, turn, user):
             )
         raise HTTPException(422, "Choose the organization before submitting its schema.")
     if command in ("cancel", "no"):
+        state.pop("task_draft", None)
         state.pop("pending", None)
         state.pop("setup", None)
         state.pop("schema_chat", None)
@@ -119,6 +120,7 @@ def respond(thread, state, turn, user):
             state.pop("pending", None)
             state.pop("setup", None)
             state.pop("schema_chat", None)
+            state.pop("task_draft", None)
             return f"Published version {config['version']} for {org['name']}.", None
         organizations.super_admin(user)
         result = organizations.provision(
@@ -126,6 +128,7 @@ def respond(thread, state, turn, user):
         )
         conversations.consume_confirmation(thread)
         state.pop("pending", None)
+        state.pop("task_draft", None)
         state["setup"] = {
             "id": secrets.token_hex(16),
             "schema": DEFAULT_CONFIG,

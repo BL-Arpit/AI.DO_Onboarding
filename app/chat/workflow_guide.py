@@ -300,7 +300,9 @@ def explain_help(thread, turn, result, user):
         "After an upload, open the document preview and compare the details read from it against the original. Text extraction can make mistakes. If your official document contains a longer name than your profile, or another detail looks wrong, ask HR to review the difference rather than assuming the document has been verified. Request a correction is for a specific contact-detail change; it is separate from submitting your onboarding application, and an unchanged form does not need to be sent.\n\n"
         "When the required document counts are complete, choose Submit to HR, review the explanation, and confirm Submit to HR. This sends your application for review; it does not mean HR has approved it. HR then checks the submitted information and either approves onboarding or returns it for correction. You can ask “Has HR approved my submission?” or “What is still missing?” at any time, and I will check your saved status without sending another request."
     )
-    if not os.getenv("GGUF_MODEL_PATH", "").strip():
+    from app.chat.provider_settings import enabled
+
+    if not enabled():
         return summary + "\n\n" + explanation, card
     facts = {
         "current_status": person["status"],

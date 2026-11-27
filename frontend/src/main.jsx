@@ -917,6 +917,12 @@ function Result({ data, active, role, busy, fields, send, choose }) {
     </div>
   );
   switch (data.type) {
+    case "task_progress":
+      return <Card><div className="card-heading"><Sparkles size={17}/><h3>{data.goal}</h3></div><dl className="detail-grid">{Object.entries(data.known || {}).map(([key,value]) => <div key={key}><dt>{({name:"Full name",email:"Work email",organization_name:"Company",phone:"Phone"})[key] || key}</dt><dd>{String(value)}</dd></div>)}</dl><p className="muted">Still needed: {(data.missing || []).map(key => ({name:"full name",email:"work email",organization_name:"company name",phone:"phone number"})[key] || key).join(", ")}. Reply in the chat to continue. No invitation has been sent.</p></Card>;
+    case "company_configuration": {
+      const c = data.configuration || {};
+      return <Card><div className="card-heading"><Settings2 size={17}/><h3>{c.name || "Company onboarding"}</h3></div><p className="muted">Current employee fields: {(c.fields || []).map(f => f.label).join(", ")}</p><p className="muted">Government documents: {c.government_minimum} required from {(c.government_types || []).map(k => TYPES[k] || k).join(", ") || "none"}.</p><p className="muted">{c.bank_minimum ? `Bank proof: ${c.bank_minimum} required from ${(c.bank_types || []).map(k => TYPES[k] || k).join(", ")}.` : "Bank proof is not required."}</p></Card>;
+    }
     case "accounts":
       return (
         <Card>

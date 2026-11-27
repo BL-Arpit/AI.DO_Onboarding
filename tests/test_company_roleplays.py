@@ -446,7 +446,7 @@ def test_roleplay_4_company_isolation_submission_offboard_restore(world):
 
 def test_hr_transcript_keeps_context_and_ignores_model_guess(world, monkeypatch):
     _, owner, _ = world.company('transcript')
-    monkeypatch.setenv('GGUF_MODEL_PATH', '/model/enabled.gguf')
+    monkeypatch.setenv('GGUF_MODEL_PATH', '')
     from app.chat import smollm_agent
     def wrong_model(*args):
         raise AssertionError('HR workflow must not be reclassified by the model')

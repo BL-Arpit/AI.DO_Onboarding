@@ -22,7 +22,7 @@ def test_beginner_help_schema_upload_submission_and_review(world, monkeypatch):
         )
         policy.update(bank_minimum=0, bank_types=[])
         db.execute("UPDATE tenants SET config=? WHERE id=?", (json.dumps(policy), tid))
-    monkeypatch.setenv("GGUF_MODEL_PATH", "/pretend/model.gguf")
+    monkeypatch.setenv("GGUF_MODEL_PATH", "")
     from app.chat import smollm_agent
 
     monkeypatch.setattr(
