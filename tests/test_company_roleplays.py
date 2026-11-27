@@ -442,3 +442,32 @@ def test_roleplay_4_company_isolation_submission_offboard_restore(world):
     print(
         "ROLEPLAY 4 PASS · two isolated companies → document submission → HR onboard → offboard revokes access → restore as draft"
     )
+
+
+def test_hr_transcript_keeps_context_and_ignores_model_guess(world, monkeypatch):
+    _, owner, _ = world.company('transcript')
+    monkeypatch.setenv('GGUF_MODEL_PATH', '/model/enabled.gguf')
+    from app.chat import smollm_agent
+    def wrong_model(*args):
+        raise AssertionError('HR workflow must not be reclassified by the model')
+    monkeypatch.setattr(smollm_agent, 'run', wrong_model)
+    def say(text):
+        return world.chat(owner, text)['messages'][-1]
+    assert 'full name' in say('Appoint HR admin')['text']
+    p = say('rishikesh kharade, rishikesh.kharade@bridgelabz.com')
+    assert p['data']['type'] == 'confirmation'
+    assert say('yes invite')['data']['type'] == 'invitations'
+    for command in ('list hr', 'list all the hr admin', 'show all HR administrators'):
+        data = say(command)['data']
+        assert data['type'] == 'hr_admins'
+        assert len(data['admins']) == 1
+        assert data['admins'][0]['email'] == 'rishikesh.kharade@bridgelabz.com'
+    assert 'full name' in say('add a hr')['text']
+    assert 'invalid' in say('"Rishikesh Kharade, Rishikesh Kharade@bridgelabz.com"')['text']
+    assert say('rishikesh.kharade@bridgelabz.com')['data']['type'] == 'confirmation'
+    say('yes invite')
+    world.login('rishikesh.kharade@bridgelabz.com', activate=True)
+    say('appoint hr admin Rishikesh Kharade, rishikesh.kharade@bridgelabz.com')
+    result = say('yes invite')
+    assert 'already active in your company' in result['text']
+    assert len(result['data']['admins']) == 1

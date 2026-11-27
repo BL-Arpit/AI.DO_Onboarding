@@ -196,8 +196,14 @@ def appoint(body: Admin, user=Depends(write_access)):
         db.execute("BEGIN IMMEDIATE")
         existing = db.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         if existing:
-            if existing["tenant_id"] != user.get("tenant_id","default") or existing["role"] != "hr_admin" or not existing["must_change"]:
-                raise HTTPException(409, "This email already has an active account.")
+            if existing["tenant_id"] != user.get("tenant_id","default"):
+                raise HTTPException(409, "This email is already registered outside this company. Use a different email or ask your company super admin to review it.")
+            if existing["role"] != "hr_admin":
+                raise HTTPException(409, "This email belongs to a different role in your company. Ask your company super admin to review the account.")
+            if existing["disabled"]:
+                raise HTTPException(409, "This HR account is disabled. Restore it through Manage HR accounts.")
+            if not existing["must_change"]:
+                return {"invitations": [], "already_active": True}
             db.execute(
                 "UPDATE users SET name=?,password=?,temp_expires=? WHERE id=?",
                 (name, hasher.hash(password), time.time() + 86400, existing["id"]),

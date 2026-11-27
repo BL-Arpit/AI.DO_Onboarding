@@ -283,7 +283,11 @@ def _execute(thread, state, turn, user):
     if operation == "import":
         return _invitations(onboarding.import_people(onboarding.ImportRows.model_validate(values), user=user))
     if operation == "appoint":
-        return _invitations(onboarding.appoint(onboarding.Admin.model_validate(values), user=user))
+        result = onboarding.appoint(onboarding.Admin.model_validate(values), user=user)
+        if result.get("already_active"):
+            admins = onboarding.list_admins(user=user)
+            return "This HR administrator is already active in your company. Here is your HR team.", {"type": "hr_admins", **admins}
+        return _invitations(result)
     if operation == "resend":
         return _invitations(onboarding.resend(values["employee_id"], user=user))
     if operation == "submit":
@@ -453,6 +457,10 @@ def attach_to(request, state, file, document_type, user):
 
 def reply_to(thread, state, turn, user):
     """Free text goes to SmolLM; explicit UI and confirmation actions stay server-owned."""
+    from app.chat.hr_conversation import respond as hr_reply
+    handled = hr_reply(thread, state, turn, user)
+    if handled is not None:
+        return handled
     from app.chat.administration_agent import respond as administration_reply
     handled=administration_reply(state,turn,user)
     if handled is not None:return handled
