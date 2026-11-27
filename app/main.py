@@ -41,9 +41,15 @@ def create_app():
             return
         initialize()
         from app.api.administration import initialize as initialize_administration
-        if not os.getenv("SUPER_ADMIN_EMAIL") or os.getenv("BOOTSTRAP_PASSWORD"):
-            bootstrap()
-        bootstrap_test_hr()
+        from app.services.data_reset import reset_if_requested
+        reset_mode = reset_if_requested()
+        if reset_mode:
+            # Restore the default tenant after its configuration has been purged.
+            initialize()
+        if not reset_mode:
+            if not os.getenv("SUPER_ADMIN_EMAIL") or os.getenv("BOOTSTRAP_PASSWORD"):
+                bootstrap()
+            bootstrap_test_hr()
         bootstrap_super_admin()
         initialize_administration()
         app.state.pipeline = DocumentPipeline(settings)
