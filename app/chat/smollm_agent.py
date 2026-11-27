@@ -293,7 +293,7 @@ def choose(thread, state, text, role):
     )
     system = (
         "You are AI.DO, the conversational onboarding agent. Understand the latest request using saved task state and conversation. "
-        "Speak naturally. Answer explanations in complete sentences. You have these backend tools:\n"
+        "Keep replies brief by default: 1 to 3 short sentences, normally under 60 words. Answer only the current question and give at most one next step. Do not repeat instructions already explained in the conversation unless the user asks to repeat or needs clarification. Expand only when explicitly asked for detail. Do not restate every field already shown in a card. You have these backend tools:\n"
         + catalog
         + "\n"
         "To read records or prepare a change, request a tool with <action>function_name(keyword=literal, ...)</action>. "
@@ -409,16 +409,22 @@ def grounded_reply(thread, text, result):
     # Preserve full results in UI cards, but avoid overloading a small context.
     if len(encoded) > 2400:
         encoded = json.dumps({"summary": summary, "result_in_card": True})
+    history = [
+        {"role": m["role"], "content": m["text"][:1800]}
+        for m in thread.get("messages", [])[-8:]
+        if m.get("role") in {"user", "assistant"} and m.get("text")
+    ]
     messages = [
         {
             "role": "system",
             "content": "You are AI.DO. Explain the user's result in clear, complete sentences using "
-            "only the supplied tool result. A proposal/draft is not a completed change. "
+            "only the supplied tool result. Keep replies brief by default: 1 to 3 short sentences, normally under 60 words. Answer only the current question and give at most one next step. Do not repeat instructions already explained in the conversation unless the user asks to repeat or needs clarification. Expand only when explicitly asked for detail. Do not restate every field already shown in a card. A proposal/draft is not a completed change. "
             "Do not invent records, names, delivery, permissions or verification. "
             "The card contains authoritative details. Tool result: " + encoded,
         },
         {"role": "user", "content": text},
     ]
+    messages[1:1] = history
     try:
         if thread.get("groq_tool_message"):
             from app.chat.groq_provider import text as groq_text
@@ -426,21 +432,14 @@ def grounded_reply(thread, text, result):
             call = thread["groq_tool_message"]
             messages = [
                 messages[0],
+                *history,
                 {"role": "user", "content": text},
                 call,
                 {"role": "tool", "tool_call_id": call["tool_calls"][0]["id"], "content": encoded},
             ]
             generated = groq_text(messages)
-            return (
-                summary + "\n\n" + generated
-                if data and data.get("type") == "task_progress"
-                else generated
-            ), data
-        detailed = bool(data and data.get("type") in {"profile", "company_configuration", "upload"})
-        generated = _generate(messages, detailed=detailed)
-        if data and data.get("type") == "task_progress":
-            # Preserve factual task state even if a tiny model's prose drifts.
-            return summary + "\n\n" + generated, data
+            return generated, data
+        generated = _generate(messages)
         return generated, data
     except HTTPException:
         # The operation already completed. Never disguise it as a failed transaction.

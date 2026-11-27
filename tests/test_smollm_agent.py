@@ -82,3 +82,17 @@ def test_model_error_does_not_hide_completed_tool_result(monkeypatch):
     monkeypatch.setattr(smol, "_generate", unavailable)
     result = ("Invitation sent.", {"type": "invitations", "invitations": []})
     assert smol.grounded_reply({}, "confirm", result) == result
+
+
+def test_result_reply_uses_recent_context_and_does_not_duplicate_progress(monkeypatch):
+    captured = {}
+    def generate(messages, **kwargs):
+        captured.update(messages=messages, kwargs=kwargs)
+        return "What is Aishwarya’s email address?"
+    monkeypatch.setattr(smol, "_generate", generate)
+    result = smol.grounded_reply(
+        {"messages": [{"role": "assistant", "text": "I have Aishwarya’s name."}]},
+        "Continue", ("Name saved. Email missing.", {"type": "task_progress"}))
+    assert result[0] == "What is Aishwarya’s email address?"
+    assert captured["messages"][1]["content"] == "I have Aishwarya’s name."
+    assert captured["kwargs"] == {}

@@ -1120,63 +1120,14 @@ input[type="checkbox"] {
   }
 }
 
-.account-rail {
-  width: 180px;
-  flex: 0 0 180px;
-  background: #191919;
-  border-right: 1px solid #ffffff05;
-  display: flex;
-  align-items: flex-end;
-  padding: 14px 12px;
-}
-.account-footer {
-  width: 100%;
-  display: grid;
-  gap: 10px;
-  padding-bottom: max(0px, env(safe-area-inset-bottom));
-}
-.account-identity {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  padding: 4px 5px;
-  min-width: 0;
-}
-.account-identity > div {
-  min-width: 0;
-}
-.account-identity strong {
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.account-identity small {
-  display: block;
-  font-size: 9px;
-  color: #8f9589;
-  margin-top: 4px;
-}
-.logout-button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 11px;
-  text-align: left;
-  color: #c5c9c0;
-  width: 100%;
-  min-height: 38px;
-}
-.logout-button:hover:not(:disabled) {
-  background: #2c3027;
-  border-color: #525c46;
-  color: #fff;
-}
+/* One chat surface: no sidebar, rail or drawer. */
+.account-identity { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.account-identity > div { min-width: 0; }
+.account-identity strong { display: block; font-size: 12px; font-weight: 500; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-identity small { display: block; font-size: 10px; color: #999; margin-top: 3px; }
+.logout-button { position: fixed; left: 16px; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 25; display: flex; align-items: center; gap: 8px; border: 1px solid #3a3a3a; border-radius: 12px; padding: 10px 12px; font-size: 12px; color: #bbb; background: #202020; min-height: 40px; }
+.logout-button:hover:not(:disabled) { background: #303030; color: #fff; }
+.composer-region { width: min(760px, calc(100% - 300px)); }
 .inline-document {
   margin: 12px 0;
   padding: 12px;
@@ -1193,39 +1144,17 @@ input[type="checkbox"] {
   font-size: 10px;
   color: #999;
 }
+@media (max-width: 1000px) {
+  .composer-region { width: min(760px, calc(100% - 32px)); padding-bottom: 68px; }
+}
 @media (max-width: 700px) {
-  .account-rail {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 25;
-    width: 100%;
-    height: calc(56px + env(safe-area-inset-bottom));
-    padding: 8px 12px;
-    background: #191919;
-    border-top: 1px solid #343434;
-    border-right: 0;
-  }
-  .account-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-  }
-  .account-identity {
-    max-width: 65%;
-    padding: 0;
-  }
-  .logout-button {
-    order: -1;
-    width: auto;
-    padding: 8px 10px;
-    flex-shrink: 0;
-  }
-  .chat-shell {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom));
-  }
+  .account-identity .avatar { display: none; }
+  .account-identity strong { max-width: 105px; font-size: 11px; }
+  .account-identity small { font-size: 9px; }
+  .topbar { padding-inline: 16px; gap: 8px; }
+  .brand-group { gap: 10px; }
+  .composer-region { padding-bottom: calc(62px + env(safe-area-inset-bottom)); }
+  .logout-button { left: 12px; }
 }
 
 .account-record,

@@ -247,3 +247,26 @@ def test_greeting_is_not_replaced_with_document_instructions():
     from app.chat.workflow_guide import respond
     from app.chat.onboarding_agent import Turn
     assert respond({}, {}, Turn(text='How are you?'), {'role':'employee'}) is None
+
+
+def test_brief_help_preserves_context_without_repeating_summary(monkeypatch):
+    from app.chat import workflow_guide as guide, smollm_agent
+    from app.chat.onboarding_agent import Turn
+
+    policy = {"government_types": ["PAN_CARD", "AADHAAR_CARD"], "government_minimum": 2,
+              "bank_types": [], "bank_minimum": 0}
+    person = {"status": "draft", "tenant_id": "company",
+              "workflow": {"government_types": ["PAN_CARD"], "bank_types": []}}
+    monkeypatch.setattr(guide, "configuration", lambda _: policy)
+    monkeypatch.setenv("CHAT_PROVIDER", "groq")
+    captured = {}
+    def generate(messages, **kwargs):
+        captured.update(messages=messages, kwargs=kwargs)
+        return "Your Aadhaar card is still needed."
+    monkeypatch.setattr(smollm_agent, "_generate", generate)
+    thread = {"messages": [{"role": "assistant", "text": "Use + to upload your documents."}]}
+    result = guide.explain_help(thread, Turn(text="What is missing?"),
+        ("Full checklist explanation", {"type": "profile", "profile": person}), {"role": "employee"})
+    assert result[0] == "Your Aadhaar card is still needed."
+    assert captured["kwargs"] == {"detailed": False}
+    assert captured["messages"][1]["content"] == "Use + to upload your documents."

@@ -412,42 +412,25 @@ function App() {
   const messages = thread?.messages || [];
   return (
     <div className="app">
-      <aside className="account-rail" aria-label="Your account">
-        <div className="account-footer">
-          <div className="account-identity">
-            <span className="avatar">
-              {session.user.name
-                ?.split(/\s+/)
-                .slice(0, 2)
-                .map((n) => n[0])
-                .join("") || "A"}
-            </span>
-            <div>
-              <strong>{session.user.name}</strong>
-              <small>{ROLES[role]}</small>
-            </div>
-          </div>
-          <button
-            className="logout-button"
-            disabled={busy}
-            onClick={() =>
-              perform(async () => {
-                await api("/api/auth/logout", { method: "POST" });
-                setSession(null);
-                setThread(null);
-                setFile(null);
-                setOrgs(null);
-                setPrompt("");
-                setMenu(false);
-                setAgent(false);
-              })
-            }
-          >
-            <LogOut size={16} />
-            <span>Log out</span>
-          </button>
-        </div>
-      </aside>
+      <button
+        className="logout-button"
+        disabled={busy}
+        onClick={() =>
+          perform(async () => {
+            await api("/api/auth/logout", { method: "POST" });
+            setSession(null);
+            setThread(null);
+            setFile(null);
+            setOrgs(null);
+            setPrompt("");
+            setMenu(false);
+            setAgent(false);
+          })
+        }
+      >
+        <LogOut size={16} />
+        <span>Log out</span>
+      </button>
       <section className="chat-shell">
         <header className="topbar">
           <div className="brand-group">
@@ -467,6 +450,19 @@ function App() {
                   <Check size={15} />
                 </div>
               )}
+            </div>
+          </div>
+          <div className="account-identity">
+            <span className="avatar">
+              {session.user.name
+                ?.split(/\s+/)
+                .slice(0, 2)
+                .map((n) => n[0])
+                .join("") || "A"}
+            </span>
+            <div>
+              <strong>{session.user.name}</strong>
+              <small>{ROLES[role]}</small>
             </div>
           </div>
         </header>
