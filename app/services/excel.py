@@ -72,9 +72,12 @@ def parse_excel(content, filename, sheet_name=None, schema_fields=()):
         custom = {f["key"]:f for f in schema_fields if f["key"] not in ALIASES}
         extra = {re.sub("[^a-z0-9]", "", f["label"].lower()):key for key,f in custom.items()}
         mapping = {}
+        configured_keys = {f["key"] for f in schema_fields}
         for i, header in enumerate(rows[0][0]):
             normalized = re.sub(r"[^a-z0-9]", "", header.lower())
             key = HEADERS.get(normalized) or extra.get(normalized)
+            if schema_fields and header.strip() and (not key or key not in configured_keys):
+                raise ValueError("Column is not in your company schema: " + header[:120])
             if key:
                 if key in mapping:
                     raise ValueError("Duplicate header for " + key + ".")

@@ -110,12 +110,12 @@ def _person_card(person):
     result = {key: person.get(key) for key in PERSON_FIELDS}
     if "workflow" in person:
         result["workflow"] = {
-            key: person["workflow"][key] for key in ("government_types", "bank_types", "minimum_government","minimum_bank")
+            key: person["workflow"][key] for key in ("government_types", "bank_types", "minimum_government","minimum_bank","allowed_government_types","allowed_bank_types","ready_to_submit","next_step")
         }
     if "documents" in person:
         result["documents"] = [
             {"id": row["id"], "kind": row["kind"],
-             "extraction": {"status": row["extraction"].get("status")}}
+             "extraction": {"status": row["extraction"].get("status"), "extracted_data": row["extraction"].get("extracted_data", {})}}
             for row in person["documents"][-15:]
         ]
     if "name_checks" in person:
@@ -128,7 +128,8 @@ def _person_card(person):
 def _proposal(state, operation, values, summary):
     token = secrets.token_hex(16)
     state["pending"] = {"id": token, "operation": operation, "values": values}
-    return summary, {"type": "confirmation", "id": token, "summary": summary}
+    labels = {"submit": "Submit to HR", "onboard": "Approve onboarding", "reopen": "Return for correction", "request_hr": "Send request to HR", "review_request": "Confirm HR decision", "add": "Send invitation", "appoint": "Invite HR", "import": "Import and invite"}
+    return summary, {"type": "confirmation", "id": token, "summary": summary, "operation": operation, "confirm_label": labels.get(operation, "Confirm change")}
 
 
 def _add_employee(turn, state):
@@ -292,7 +293,8 @@ def _execute(thread, state, turn, user):
         return _invitations(onboarding.resend(values["employee_id"], user=user))
     if operation == "submit":
         person = onboarding.submit(VersionInput.model_validate(values), user=user)
-        return "Your documents have been submitted for review.", {"type": "profile", "profile": _person_card(person)}
+        from app.chat.workflow_guide import profile_result
+        return profile_result(person, "Your application has been sent to HR. You do not need to submit again. HR will review your documents and either approve onboarding or ask for corrections.")
     if operation == "profile_update":
         from app.api.administration import RequestInput,create_request
         person = onboarding.profile(user=user)
@@ -416,6 +418,8 @@ def _legacy_reply_to(thread, state, turn, user):
             return "Here’s the current employee record.", {"type": "employee", "employee": _person_card(employee)}
         if intent == "resend":
             return _proposal(state, intent, {"employee_id": person["id"]}, f"Resend an invitation to {person['email']}?")
+        if intent in {"onboard", "reopen"} and person["status"] != "submitted":
+            return f"{person['name']} has not submitted an application for review. Ask them to complete the checklist and choose Submit to HR first.", {"type": "employee", "employee": _person_card(onboarding.detail(person["id"], user=user))}
         decision = EmployeeDecision(employee_id=person["id"], version=person["version"], operation=intent)
         label = {"offboard": "Offboard", "onboard": "Approve", "reopen": "Reopen the submission for"}[intent]
         return _proposal(state, intent, decision.model_dump(), f"{label} {person['name']}?")
@@ -435,9 +439,8 @@ def attach_to(request, state, file, document_type, user):
         return draft(state, from_sheet(file, request.app.state.settings.max_upload_bytes),state.get("setup",{}).get("organization"))
     if user["role"] == "employee":
         person = onboarding.document(request, file, document_type, user=user)
-        return "Document received. Here’s your updated checklist.", {
-            "type": "profile", "profile": _person_card(person),
-        }
+        from app.chat.workflow_guide import profile_result
+        return profile_result(person, "Document received. It is saved for your application; HR has not approved it yet.")
     preview = onboarding.preview(request, file, user=user)
     accepted = preview["accepted"]
     rejected = preview["rejected"]
@@ -445,18 +448,23 @@ def attach_to(request, state, file, document_type, user):
         {"row": row["row"], "name": row["name"][:120], "issues": row["issues"]}
         for row in rejected[:25]
     ]
-    data = {"type": "import", "accepted": len(accepted), "rejected": rejected_preview}
+    data = {"type": "import", "accepted": len(accepted), "people": [{"name": row["person"]["name"], "email": row["person"]["email"]} for row in accepted[:20]], "rejected": rejected_preview}
     if len(accepted) > 20:
         return "Split this import into files with at most 20 accepted rows so invitations fit within one request.", data
     if not accepted:
         return "No rows passed validation. Fix the workbook and attach it again.", data
     summary = f"Import {len(accepted)} valid rows and send invitations? {len(rejected)} rows were rejected."
     reply, confirmation = _proposal(state, "import", {"people": [row["person"] for row in accepted]}, summary)
-    return reply, {**data, "id": confirmation["id"], "summary": confirmation["summary"]}
+    return reply, {**data, "id": confirmation["id"], "summary": confirmation["summary"], "confirm_label": "Import and invite employees"}
 
 
 def reply_to(thread, state, turn, user):
     """Free text goes to SmolLM; explicit UI and confirmation actions stay server-owned."""
+    from app.chat.workflow_guide import respond as guide_reply
+    guided = guide_reply(thread, state, turn, user)
+    if guided is not None:
+        from app.chat.workflow_guide import explain_help
+        return explain_help(thread, turn, guided, user)
     from app.chat.hr_conversation import respond as hr_reply
     handled = hr_reply(thread, state, turn, user)
     if handled is not None:

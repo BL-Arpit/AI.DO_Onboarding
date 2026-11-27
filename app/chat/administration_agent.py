@@ -123,6 +123,8 @@ def respond(state, turn, user):
         }
     if command == "request_hr":
         admin.permit(user, "employee")
+        if payload.get("message") == "Please review my contact details." and not payload.get("fields"):
+            return "No contact details were changed. Edit at least one field before sending a correction request. To check an existing request, ask My requests.", None
         values = admin.RequestInput.model_validate(payload or {"message": text}).model_dump()
         values["fields"] = admin.clean_changes(values["fields"])
         return _proposal(

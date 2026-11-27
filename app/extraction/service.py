@@ -130,7 +130,10 @@ class DocumentExtractionService:
             key=lambda result: score_text(result.text),
         )
         detection_text = "\n".join(result.text for result in ocr_candidates)
-        detected = requested_type or self.identify_document(detection_text)
+        evidence_type = self.identify_document(detection_text)
+        if requested_type is not None and evidence_type != requested_type:
+            raise ValueError("The image does not match the selected document type. Upload a clear document of that type.")
+        detected = evidence_type
         if (
             requested_type is None
             and callable(candidate_method)

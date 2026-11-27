@@ -116,6 +116,7 @@ function App() {
   const [drag, setDrag] = useState(false),
     [orgs, setOrgs] = useState(null);
   const [requestForm, setRequestForm] = useState(false);
+  const [documentPolicy, setDocumentPolicy] = useState(null);
   const input = useRef(),
     scroll = useRef(),
     textarea = useRef(),
@@ -154,6 +155,7 @@ function App() {
       request("/api/organizations/current", opt),
     ]);
     setFields(config.fields || []);
+    setDocumentPolicy(config);
     let current;
     if (list.conversations?.length)
       current = await request(
@@ -162,6 +164,9 @@ function App() {
       );
     else
       current = await request("/api/conversations", { ...opt, method: "POST" });
+    if (details.user.role === "employee" && !current.messages?.length) {
+      current = await request("/api/conversations/" + current.id + "/turn", {...opt, method:"POST", body:{text:"Get started", action:"profile"}});
+    }
     setThread(current);
   }
   useEffect(() => {
@@ -654,15 +659,15 @@ function App() {
                   value={kind}
                   onChange={(e) => setKind(e.target.value)}
                 >
-                  <option value="">Auto-detect</option>
-                  {Object.entries(TYPES).map(([k, v]) => (
+                  <option value="">Choose document type</option>
+                  {Object.entries(TYPES).filter(([k]) => [...(documentPolicy?.government_types || []), ...(documentPolicy?.bank_types || [])].includes(k)).map(([k, v]) => (
                     <option key={k} value={k}>
                       {v}
                     </option>
                   ))}
                 </select>
               )}
-              <Btn primary disabled={busy} onClick={upload}>
+              <Btn primary disabled={busy || (employee && !kind)} onClick={upload}>
                 Upload
               </Btn>
               <button
@@ -758,7 +763,7 @@ function App() {
             </button>
           </form>
           <p className="composer-note">
-            Review employee details and original documents before approving.
+            {employee ? "Upload your required documents, then submit to HR. Ask here if you need help." : role === "hr_admin" ? "Review submitted applications and original documents before approving onboarding." : role === "owner" ? "Appoint HR and track your company’s onboarding progress." : "Configure your company’s onboarding requirements and accounts."}
           </p>
           <input
             ref={input}
@@ -904,7 +909,7 @@ function Result({ data, active, role, busy, fields, send, choose }) {
     <div className="card-actions">
       <Btn primary disabled={busy} onClick={confirm}>
         <Check size={15} />
-        Confirm
+        {data.confirm_label || "Confirm change"}
       </Btn>
       <Btn disabled={busy} onClick={cancel}>
         Cancel
@@ -1129,7 +1134,7 @@ function Result({ data, active, role, busy, fields, send, choose }) {
             <span className="soft-icon">
               <Check size={17} />
             </span>
-            <h3>Ready to proceed?</h3>
+            <h3>{data.confirm_label || "Review this action"}</h3>
           </div>
           <p className="muted">{data.summary}</p>
           {confirmation}
@@ -1140,6 +1145,7 @@ function Result({ data, active, role, busy, fields, send, choose }) {
         <Card>
           <h3>Invitation delivery</h3>
           <Delivery invitations={data.invitations} />
+          {role === "hr_admin" && <><p className="muted">The employees can sign in using their invitation, upload their documents and submit them to HR. You can track their progress in the employee list.</p><Btn disabled={busy} onClick={() => send("List employees")}>View employee list</Btn></>}
         </Card>
       );
     case "employee":
@@ -1161,7 +1167,7 @@ function Result({ data, active, role, busy, fields, send, choose }) {
             <span className="count">{data.employees?.length || 0}</span>
           </div>
           {!data.employees?.length ? (
-            <p className="muted">No employees to show.</p>
+            <p className="muted">No employees in this view. “List employees” shows everyone; “Review submissions” shows only applications submitted to HR.</p>
           ) : (
             data.employees.map((person) => (
               <button
@@ -1214,7 +1220,8 @@ function Result({ data, active, role, busy, fields, send, choose }) {
             <FileText size={18} />
             <h3>Review employee list</h3>
           </div>
-          <p className="muted">{data.accepted || 0} valid rows</p>
+          <p className="muted">{data.accepted || 0} employees are ready to add. Confirm below to create their accounts and send invitations.</p>
+          {(data.people || []).map(p => <div className="employee-row" key={p.email}><span><strong>{p.name}</strong><small>{p.email}</small></span></div>)}
           {(data.rejected || []).map((r, i) => (
             <ErrorLine
               key={i}
@@ -1303,7 +1310,7 @@ function Delivery({ invitations = [] }) {
 function Badge({ status }) {
   const labels = {
     draft: "Awaiting submission",
-    submitted: "Ready for review",
+    submitted: "Submitted · HR review pending",
     onboarded: "Onboarded",
     active: "Active",
     password_change_required: "Invited",
@@ -1316,6 +1323,7 @@ function Badge({ status }) {
 }
 function Person({ person, role, busy, send }) {
   const [editing, setEditing] = useState(false);
+  const [correctionError, setCorrectionError] = useState("");
   const [previewDoc, setPreviewDoc] = useState(null);
   if (!person) return null;
   return (
@@ -1343,21 +1351,36 @@ function Person({ person, role, busy, send }) {
           ))}
       </dl>
       {person.workflow && (
-        <div className="checklist">
-          <span>
-            <ShieldCheck size={15} />
-            {person.workflow.government_types.length}/
-            {person.workflow.minimum_government} government documents
-          </span>
-          <span>
-            <FileText size={15} />
-            {person.workflow.bank_types.length}/{person.workflow.minimum_bank}{" "}
-            bank proof
-          </span>
-        </div>
+        <section className="onboarding-guide" aria-label="Onboarding steps">
+          <ol className="journey">
+            <li className={person.workflow.ready_to_submit ? "done" : "current"}>1. Upload documents</li>
+            <li className={person.status === "submitted" || person.status === "onboarded" ? "done" : ""}>2. Submit to HR</li>
+            <li className={person.status === "onboarded" ? "done" : person.status === "submitted" ? "current" : ""}>3. HR review</li>
+          </ol>
+          <div className="requirement-list">
+            {[
+              ["Government documents", person.workflow.minimum_government, person.workflow.government_types, person.workflow.allowed_government_types],
+              ["Bank proof", person.workflow.minimum_bank, person.workflow.bank_types, person.workflow.allowed_bank_types],
+            ].map(([label, minimum, received, allowed]) => (
+              <div className="requirement" key={label}>
+                <strong>{label}</strong>
+                <span>{minimum ? `${received.length} of ${minimum} received` : "Not required by your company"}</span>
+                <small>{minimum ? (minimum === (allowed || []).length ? "Upload each document below" : `Choose ${minimum} different types below`) : (allowed || []).length ? "Optional accepted documents" : "No bank document needs to be uploaded."}</small>
+                <ul className="document-requirements">{(allowed || []).map(k => <li key={k}><span>{TYPES[k] || k}</span><em>{received.includes(k) ? "Received" : minimum ? "Not uploaded" : "Optional"}</em></li>)}</ul>
+              </div>
+            ))}
+          </div>
+          <p className="next-step">{person.status === "submitted" ? "Submitted to HR. Wait for review; uploading is complete." : person.status === "onboarded" ? "HR approved onboarding." : person.workflow.ready_to_submit ? "Documents received. Check the details, then submit your application to HR." : "Upload the missing accepted documents using + → Upload document. Each required document must be a different type."}</p>
+          {role === "employee" && person.status === "draft" && (
+            <div className="card-actions">
+              <Btn disabled={busy} onClick={() => send("How do I upload documents?", {action:"upload"})}>Upload guidance</Btn>
+              <Btn primary disabled={busy || !person.workflow.ready_to_submit} onClick={() => send("Submit to HR", {action:"submit"})}>Submit to HR</Btn>
+            </div>
+          )}
+        </section>
       )}
       <div className="document-list">
-        {person.documents?.map((doc) => (
+        {person.documents?.filter((doc, i, docs) => !docs.slice(i+1).some(other => other.kind === doc.kind)).map((doc) => (
           <button
             key={doc.id}
             disabled={busy}
@@ -1370,12 +1393,13 @@ function Person({ person, role, busy, send }) {
             </span>
             <span>
               <strong>{TYPES[doc.kind] || doc.kind}</strong>
-              <small>Preview original document</small>
+              <small>Uploaded · {doc.extraction?.status === "success" ? "Fields extracted" : "Check extracted details"} · Preview</small>
             </span>
             <ChevronRight size={16} />
           </button>
         ))}
       </div>
+      {previewDoc?.extraction?.extracted_data && <div className="extracted-fields"><h4>Details read from this document</h4><dl className="detail-grid">{Object.entries(previewDoc.extraction.extracted_data).filter(([,v]) => v !== null && v !== "" && typeof v !== "object").map(([key,value]) => <div key={key}><dt>{key.replaceAll("_"," ")}</dt><dd>{String(value)}</dd></div>)}</dl><p className="muted">Check these details against your document. If they are incorrect, ask HR for help.</p></div>}
       {previewDoc && (
         <DocumentPreview
           key={previewDoc.id}
@@ -1399,6 +1423,11 @@ function Person({ person, role, busy, send }) {
                     ([k, value]) => value !== String(person[k] ?? ""),
                   ),
                 );
+                if (!Object.keys(changes).length) {
+                  setCorrectionError("Change at least one detail before requesting a correction.");
+                  return;
+                }
+                setCorrectionError("");
                 send("Request a profile correction", {
                   action: "request_hr",
                   payload: {
@@ -1428,8 +1457,9 @@ function Person({ person, role, busy, send }) {
                 required
               />
               <button className="btn primary" disabled={busy}>
-                Review request
+                Review correction request
               </button>
+              <ErrorLine text={correctionError} />
             </form>
           )}
         </>
@@ -1454,6 +1484,7 @@ function Person({ person, role, busy, send }) {
           </Btn>
         </div>
       )}
+      {role === "hr_admin" && person.status !== "submitted" && person.status !== "onboarded" && <p className="muted">Awaiting the employee’s submission. HR approval is available after they choose Submit to HR.</p>}
       {role === "hr_admin" && (
         <details className="quiet-details">
           <summary>More actions</summary>

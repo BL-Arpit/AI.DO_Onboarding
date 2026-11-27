@@ -164,16 +164,9 @@ class DocumentPipeline:
                     temporary, DocumentType(document_type) if document_type else None
                 )
             except OCRProcessingError:
-                if not document_type:
-                    raise HTTPException(422, "Choose the document type to continue. OCR found no usable text.") from None
-                extraction = {
-                    "document_type": document_type,
-                    "status": "partial",
-                    "supported": True,
-                    "extraction_source": getattr(service.ocr, "source", "tesseract"),
-                    "validation": {"valid": False, "fields": {}},
-                    "message": "OCR found no usable text. Review the document and leave unreadable fields blank.",
-                }
+                raise HTTPException(422, "I could not identify this document from the image. Please upload a clear, upright copy of an accepted document. It has not been added to your checklist.") from None
+            except ValueError:
+                raise HTTPException(422, "The document does not match the selected type. Choose the correct type and upload a clear copy; the file has not been added.") from None
             kind = extraction["document_type"]
             if kind not in models:
                 raise HTTPException(422, "Choose the document type to continue. Automatic classification could not identify it.")

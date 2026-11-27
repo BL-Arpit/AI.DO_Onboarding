@@ -487,15 +487,26 @@ def document(request: Request, file: UploadFile = File(...), document_type: str 
     with connection() as db:
         person = own(db, user)
         employees.check_version(person, person["version"])
+    from app.services.tenant_metadata import configuration
+    policy = configuration(person.get("tenant_id"))
+    allowed = set(policy["government_types"] + policy["bank_types"])
+    if document_type and document_type not in allowed:
+        raise HTTPException(422, "Your company does not accept this document type. Open My checklist to see accepted documents.")
     settings = request.app.state.settings
     if settings.document_mode == "mock_pan":
         raise HTTPException(503, "Enable real OCR before accepting submissions.")
     with file.file:
         data = file.file.read(settings.max_upload_bytes + 1)
     result = request.app.state.pipeline.process(data, file.filename or "", document_type)
+    kind = result["extraction"]["document_type"]
+    if kind not in allowed or (document_type and kind != document_type):
+        raise HTTPException(422, "This document does not match an accepted type in your company checklist. Choose the correct type and upload that document.")
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         latest = own(db, user)
+        current_policy = configuration(latest.get("tenant_id"))
+        if kind not in set(current_policy["government_types"] + current_policy["bank_types"]):
+            raise HTTPException(409, "Your company document rules changed. Refresh the checklist and upload an accepted type.")
         updated = employees.save_document(db, latest["id"], person["version"], result, user)
         doc_id = updated["documents"][-1]["id"]
         db.execute("INSERT INTO document_uploads VALUES(?,?)", (doc_id, data))
@@ -530,7 +541,8 @@ def submit(body: VersionInput, user=Depends(write_access)):
         employees.check_version(person, body.version)
         flow = person["workflow"]
         if len(flow["government_types"]) < flow["minimum_government"] or len(flow["bank_types"]) < flow["minimum_bank"]:
-            raise HTTPException(422, "Complete the government and bank document requirements shown in your checklist.")
+            from app.chat.workflow_guide import guidance
+            raise HTTPException(422, "Your application has not been submitted. " + guidance(person))
         db.execute("UPDATE employees SET status='submitted',version=version+1 WHERE id=?", (person["id"],))
         audit(db, person["id"], user["id"], "submitted")
         updated = own(db, user)

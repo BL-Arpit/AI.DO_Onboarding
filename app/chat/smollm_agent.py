@@ -88,7 +88,7 @@ class Decision(BaseModel):
     reply: str = Field(max_length=2000)
 
 
-def _generate(messages, *, structured=False):
+def _generate(messages, *, structured=False, detailed=False):
     path = os.getenv("GGUF_MODEL_PATH", "").strip()
     if not path:
         raise HTTPException(503, "The local chat model is not configured.")
@@ -99,8 +99,12 @@ def _generate(messages, *, structured=False):
             raise HTTPException(503, "The local chat model is busy. Please retry shortly.")
         try:
             engine = model(path)
-            budget = int(os.getenv("GGUF_MAX_REPLY_TOKENS", "128"))
-            budget = max(64, min(budget, 512))
+            if detailed:
+                budget = int(os.getenv("GGUF_HELP_REPLY_TOKENS", "1024"))
+                budget = max(256, min(budget, 1536))
+            else:
+                budget = int(os.getenv("GGUF_MAX_REPLY_TOKENS", "128" if structured else "512"))
+                budget = max(64, min(budget, 512 if structured else 1024))
 
             # Count the actual ChatML prompt, then discard oldest history pairs.
             def tokens():
@@ -118,6 +122,10 @@ def _generate(messages, *, structured=False):
                     del messages[1:3]
                 else:
                     del messages[1:2]
+            if detailed:
+                budget = min(budget, engine.n_ctx() - tokens() - 32)
+                if budget < 128:
+                    raise HTTPException(413, "Not enough local model context for detailed help.")
             if tokens() + budget + 16 > engine.n_ctx():
                 raise HTTPException(
                     413,
@@ -174,6 +182,8 @@ def choose(thread, state, text, role):
     ]
     if thread.get("schema_keys"):
         context["available_fields"] = thread["schema_keys"]
+    if thread.get("workflow_context"):
+        context["current_onboarding_state"] = thread["workflow_context"]
     if recalled:
         context["retrieved_memory"] = recalled
     messages = [
@@ -218,11 +228,11 @@ def choose(thread, state, text, role):
             raise ValueError("Unknown tool")
         if tool == "chat":
             messages[0]["content"] = (
-                "You are a helpful onboarding assistant. Reply briefly in conversational English. "
+                "You are a patient onboarding assistant. Use complete, natural sentences. For help, explanations and how-to questions, give a thorough answer in several connected paragraphs with clear practical steps. Keep simple greetings short. "
                 "You can help with employee invitations, document submission and review. "
                 "Never claim to have performed an action."
             )
-            return Decision(tool=tool, arguments={}, reply=_generate(messages))
+            return Decision(tool=tool, arguments={}, reply=_generate(messages, detailed=any(term in text.casefold() for term in ("help", "explain", "guide", "how ", "what ", "clarify", "detail"))))
         names = tools[tool][2]
         args = {}
         if names:
@@ -294,7 +304,7 @@ def grounded_reply(thread, text, result):
     messages = [
         {
             "role": "system",
-            "content": "You are AI.DO. Answer the user's request naturally in one or two sentences using "
+            "content": "You are AI.DO. Explain the user's result in clear, complete sentences using "
             "only the supplied tool result. A proposal/draft is not a completed change. "
             "Do not invent records, names, delivery, permissions or verification. "
             "The card contains authoritative details. Tool result: " + encoded,
@@ -318,6 +328,21 @@ def run(thread, state, turn, user):
             **thread,
             "schema_keys": [f["key"] for f in configuration(user["tenant_id"])["fields"]],
         }
+    from app.services.tenant_metadata import configuration
+    policy = configuration(user.get("tenant_id"))
+    facts = {"accepted_government_documents": policy["government_types"], "minimum_government": policy["government_minimum"], "accepted_bank_documents": policy["bank_types"], "minimum_bank": policy["bank_minimum"], "stages": "Employee uploads, then submits to HR; HR reviews, then approves or returns for correction. A help or status question is read-only."}
+    if user["role"] == "employee":
+        current = onboarding.profile(user=user)
+        facts.update(status=current["status"], checklist=current["workflow"])
+    elif state.get("employee_id"):
+        try:
+            current = onboarding.detail(state["employee_id"], user=user)
+            facts.update(selected_employee={"name": current["name"], "email": current["email"], "status": current["status"]})
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            state.pop("employee_id", None)
+    thread = {**thread, "workflow_context": facts}
     d = choose(thread, state, turn.text, user["role"])
     args = d.arguments
     changes = args.model_dump(
@@ -460,6 +485,8 @@ def run(thread, state, turn, user):
                 f"Resend invitation to {person['email']}?",
             )
         else:
+            if tool in {"onboard", "reopen"} and person["status"] != "submitted":
+                return f"{person['name']} has not submitted for HR review yet. They must complete the checklist and choose Submit to HR first.", {"type": "employee", "employee": agent._person_card(onboarding.detail(person["id"], user=user))}
             result = agent._proposal(
                 state,
                 tool,
@@ -474,6 +501,9 @@ def run(thread, state, turn, user):
                 {"type": "profile", "profile": agent._person_card(person)},
             )
         elif tool == "submit":
+            from app.chat.workflow_guide import ready, profile_result
+            if not ready(person) or person["status"] in {"submitted", "onboarded"}:
+                return profile_result(person)
             result = agent._proposal(
                 state, "submit", {"version": person["version"]}, "Submit your documents for review?"
             )
