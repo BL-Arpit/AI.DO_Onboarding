@@ -31,7 +31,35 @@ def execute_plan(thread, state, decision, user):
             {"type": "company_configuration", "configuration": config},
         )
     organizations.super_admin(user)
+    if tool == "rename_company":
+        from app.api import administration as admin
+        from app.chat.onboarding_agent import _proposal
+        from app.repositories.database import connection
+        from fastapi import HTTPException
+
+        if user["tenant_id"] == "default":
+            raise HTTPException(409, "Finish the owner invitation first. The company name can be corrected in that draft.")
+        config = configuration(user["tenant_id"])
+        if not args.organization_name or not args.organization_name.strip():
+            return "What should your company be called?", None
+        values = {"name": args.organization_name.strip(), "expected_version": config["version"]}
+        if args.name:
+            with connection() as db:
+                owners = db.execute("SELECT * FROM users WHERE tenant_id=? AND role='owner'", (user["tenant_id"],)).fetchall()
+            if len(owners) != 1:
+                raise HTTPException(409, "Your company must have exactly one owner before correcting the owner name.")
+            values.update(owner_name=args.name, owner_revision=admin.revision(owners[0]))
+        # An unrelated unfinished invitation must not capture later confirmations.
+        for key in ("task_draft", "setup", "schema_chat"):
+            state.pop(key, None)
+        summary = f"Rename {config['name']} to {values['name']}? The company and its accounts stay the same."
+        if args.name:
+            summary += f" Also correct the owner's name to {args.name}."
+        return _proposal(state, "company_rename", values, summary)
     if tool == "invite_owner":
+        if user["tenant_id"] != "default":
+            state.pop("task_draft", None)
+            return "Your company already has its owner. You can rename the company or correct that owner's details; another company or owner cannot be added.", None
         task = state.get("task_draft", {})
         values = (
             dict(task.get("values", {}))

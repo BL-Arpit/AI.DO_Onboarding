@@ -82,8 +82,13 @@ TOOL_CATALOG.update(
             ("super_admin", "owner", "hr_admin"),
             ("target",),
         ),
+        "rename_company": (
+            "Rename this assigned company in place, optionally correcting its existing owner's name. Never transfer accounts to a different company.",
+            ("super_admin",),
+            ("organization_name", "name"),
+        ),
         "invite_owner": (
-            "Collect company and owner contact details, then propose inviting the owner",
+            "FIRST SETUP ONLY: collect this company's single owner, never an HR admin. Unavailable once company_assigned is true",
             ("super_admin",),
             ("organization_name", "name", "email"),
         ),
@@ -241,6 +246,7 @@ def _validate_evidence(decision, thread, state, text, context):
         + json.dumps(state.get("task_draft", {}).get("values", {}))
         + " "
         + json.dumps(context.get("business", {}).get("selected_employee", {}))
+        + " " + json.dumps(context.get("business", {}).get("company_accounts", []))
     )
     normalize = lambda value: " ".join(str(value).casefold().split())
     for key in ("name", "email", "phone", "organization_name", "target"):
@@ -265,6 +271,8 @@ def choose(thread, state, text, role):
         "planner_context",
         {k: state[k] for k in ("task_draft", "draft", "pending", "employee_id") if k in state},
     )
+    if context.get("business", {}).get("company_assigned"):
+        tools.pop("invite_owner", None)
     from app.chat.provider_settings import provider
 
     if provider() == "groq":
@@ -292,7 +300,7 @@ def choose(thread, state, text, role):
         name + "(" + ", ".join(spec[2]) + "): " + spec[0] for name, spec in tools.items()
     )
     system = (
-        "You are AI.DO, the conversational onboarding agent. Understand the latest request using saved task state and conversation. "
+        "Current database business context overrides historical messages, recalled text and abandoned drafts for names, company and roles. A draft is not a saved account. Super admin is exclusive to one company and one owner: after setup use rename_company for company name changes (even if phrased as change Arpit company), correct_account for owner contact changes, and accounts to look up current people. Never claim a rename or correction happened before confirmation. HR appointment is the OWNER role only: tell super admin to ask the owner; never reinterpret an HR request as invite_owner or start an owner draft for it. Do not guess corrected spellings from old chat. You are AI.DO, the conversational onboarding agent. Understand the latest request using saved task state and conversation. "
         "Keep replies brief by default: 1 to 3 short sentences, normally under 60 words. Answer only the current question and give at most one next step. Do not repeat instructions already explained in the conversation unless the user asks to repeat or needs clarification. Expand only when explicitly asked for detail. Do not restate every field already shown in a card. You have these backend tools:\n"
         + catalog
         + "\n"
@@ -497,7 +505,7 @@ def run(thread, state, turn, user):
         )
     if tool == "chat":
         return d.reply, None
-    if tool in {"invite_owner", "configure_schema", "company_overview", "help"}:
+    if tool in {"invite_owner", "rename_company", "configure_schema", "company_overview", "help"}:
         from app.chat.company_plans import execute_plan
 
         result = execute_plan(thread, state, d, user)

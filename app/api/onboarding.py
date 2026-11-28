@@ -161,6 +161,10 @@ def send_invite(config, address, password):
 
 
 def create_account(db, name, email, role, password, tenant_id="default"):
+    if role == "owner" and db.execute(
+        "SELECT 1 FROM users WHERE tenant_id=? AND role='owner'", (tenant_id,)
+    ).fetchone():
+        raise HTTPException(409, "This company already has its owner. Correct the existing owner's details instead.")
     if db.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
         raise HTTPException(409, "An account already exists for that email.")
     uid = secrets.token_hex(16)

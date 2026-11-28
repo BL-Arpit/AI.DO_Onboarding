@@ -135,3 +135,46 @@ def query_employees(body: EmployeeQuery, user=Depends(write_access)):
             (tid, *params, body.equals, body.limit),
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+class CompanyRename(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=160)
+    expected_version: int = Field(ge=1)
+    owner_name: str | None = Field(default=None, min_length=1, max_length=120)
+    owner_revision: str | None = None
+
+
+@router.put("/current/name")
+def rename_company(body: CompanyRename, user=Depends(write_access)):
+    """Rename the assigned company in place; never transfer users or create a company."""
+    import json
+    import time
+    from app.api import administration as admin
+
+    super_admin(user)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Provide a company name.")
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        actor = db.execute("SELECT tenant_id FROM users WHERE id=?", (user["id"],)).fetchone()
+        tid = actor["tenant_id"] if actor else "default"
+        if tid == "default" or tid != user["tenant_id"]:
+            raise HTTPException(409, "Assign your company's owner before renaming the company.")
+        row = db.execute("SELECT * FROM tenants WHERE id=?", (tid,)).fetchone()
+        if not row or row["version"] != body.expected_version:
+            raise HTTPException(409, "Company details changed. Review the current name and confirm again.")
+        if body.owner_name is not None:
+            owners = db.execute("SELECT * FROM users WHERE tenant_id=? AND role='owner'", (tid,)).fetchall()
+            if len(owners) != 1 or admin.revision(owners[0]) != body.owner_revision:
+                raise HTTPException(409, "Owner details changed. Review the current owner and confirm again.")
+            admin.apply_changes(db, owners[0], {"name": body.owner_name}, user)
+        version = row["version"] + 1
+        db.execute("UPDATE tenants SET name=?,version=? WHERE id=? AND version=?",
+                   (name, version, tid, body.expected_version))
+        db.execute("INSERT INTO tenant_schema_versions(tenant_id,version,config,actor,created) VALUES(?,?,?,?,?)",
+                   (tid, version, row["config"], user["id"], time.time()))
+        admin.audit(db, None, user["id"], "company_renamed",
+                    json.dumps({"tenant_id": tid, "before": row["name"], "after": name}))
+    return {"id": tid, **configuration(tid)}

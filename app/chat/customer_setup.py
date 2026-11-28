@@ -68,6 +68,8 @@ def draft(state, schema, organization=None):
 
 def respond(thread, state, turn, user):
     organizations.super_admin(user)
+    if turn.action and turn.action not in {"confirm", "cancel"}:
+        raise HTTPException(403, "This action is outside company setup. Your owner appoints HR; HR manages employees.")
     command = turn.action or turn.text.lower().strip()
     if user["role"] == "super_admin" and command in {
         "invite owner",
@@ -77,6 +79,9 @@ def respond(thread, state, turn, user):
         state.pop("setup", None)
         state.pop("pending", None)
         state.pop("schema_chat", None)
+        if user["tenant_id"] != "default":
+            state.pop("task_draft", None)
+            return "Your company already has its owner. Ask to rename the company or correct the existing owner's details.", None
     if turn.organization_id:
         if turn.organization_id != user["tenant_id"]:
             raise HTTPException(403, "Choose your own organization.")
@@ -107,6 +112,14 @@ def respond(thread, state, turn, user):
         return "Setup cancelled.", None
     if command in ("confirm", "yes"):
         pending = state.get("pending", {})
+        if pending.get("operation") == "company_rename":
+            if turn.confirmation_id and turn.confirmation_id != pending["id"]:
+                return "That confirmation is outdated. Review the current company rename.", None
+            config = organizations.rename_company(organizations.CompanyRename.model_validate(pending["values"]), user)
+            conversations.consume_confirmation(thread)
+            for key in ("pending", "setup", "schema_chat", "task_draft"):
+                state.pop(key, None)
+            return f"Company renamed to {config['name']}. The owner and company records were kept.", None
         if pending.get("operation") not in ("provision", "schema") or (
             turn.confirmation_id and turn.confirmation_id != pending["id"]
         ):
@@ -155,6 +168,8 @@ def respond(thread, state, turn, user):
             state["pending"] = {"operation": "schema", "id": key, "values": spec.model_dump()}
             return summary, {"type": "confirmation", "id": key, "summary": summary}
         organizations.super_admin(user)
+        if user["tenant_id"] != "default":
+            raise HTTPException(409, "Your company already has its owner. Rename the existing company instead.")
         spec = organizations.Provision.model_validate(turn.setup)
         key = secrets.token_hex(16)
         summary = f"Create {spec.name} and invite {spec.owner.email} as owner?"

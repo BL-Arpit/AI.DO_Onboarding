@@ -1,27 +1,28 @@
-AI.DO — Short replies and single-screen chat
+AI.DO — Single company / single owner correction
 
-Apply ON TOP OF your latest Groq/Qwen build. This contains changed files only.
+Apply these changed files over the latest Groq build (including the short-chat UI update).
+Extract into your repository root, replace matching files, commit and push, then deploy the latest commit on Render. Refresh your browser after deployment.
 
-1. Extract this ZIP at your repository root, allowing matching files to be replaced.
-2. Commit and push these files to the branch used by Render.
-3. Deploy the latest commit on Render, then refresh the app (Ctrl+Shift+R).
+No environment-variable, API-key or database schema changes. DO NOT purge your database.
 
-No environment-variable, API-key, database or Dockerfile changes are required.
-Do not reset your database. Existing conversations stay saved.
+The existing company's name is changed in place. Its ID, owner, employees, documents and conversations stay attached to it. This does not move users between companies.
 
-Changes
-- Brief responses by default (1–3 short sentences, normally below 60 words).
-- Model receives recent private conversation when explaining backend results.
-- No repeat of previously explained guidance unless the user asks or needs clarification.
-- Detailed answers remain available on request.
-- No separate summary plus a second explanation of the same result.
-- Sidebar removed; chat fills the screen.
-- Account identity in the header; Log out remains fixed bottom left.
-- Narrow-screen composer leaves space for Log out.
-- React production assets included, alongside source.
+Try as your super admin:
+1. Show company accounts
+2. Rename company to BridgeLabz and correct owner name to Arpit Sahu
+3. Confirm (or Cancel)
+4. Show company accounts
 
-Validation: frontend production build passed; 26 targeted tests passed, using simulated model responses.
-Live Groq generation and browser layout were not verified in this run.
-Reply length is a model instruction, not a hard truncation limit; lists may need more space.
+Controls:
+- One company per super admin. Company picker removed.
+- First setup invites one owner. Once assigned, Invite owner is removed from available model tools and UI suggestions.
+- Server also rejects a second owner, a second company and stale pre-provisioning cards.
+- Super admin can rename the assigned company and correct the existing owner. Owner appoints HR; super admin HR actions do not start owner setup.
+- Optional company rename and owner-name correction are confirmed and committed together.
+- Current saved owner and company details override historical messages and abandoned drafts in model context.
+- Old unfinished owner drafts are cleared for already-assigned super admins.
+- Renames require a current company version; concurrent changes require a new review.
+- Short replies and bottom-left logout are preserved.
 
-Old hashed assets left in your repository are unused by the new index.html and may be removed separately.
+Validation: 43 targeted tests passed (real application auth/SQL paths with SQLite, simulated Mongo/email and controlled model outputs); React production build passed. Live Render/PostgreSQL/Groq were not exercised.
+No existing records were edited by this patch preparation.

@@ -7,6 +7,14 @@ from app.services.tenant_metadata import configuration
 
 def build(thread, state, user):
     policy = configuration(user.get("tenant_id"))
+    if user["role"] == "super_admin" and user.get("tenant_id", "default") != "default":
+        # Discard pre-provisioning work left in old conversation state.
+        if state.get("task_draft", {}).get("tool") == "invite_owner":
+            state.pop("task_draft", None)
+        if state.get("pending", {}).get("operation") == "provision":
+            state.pop("pending", None)
+        if state.get("setup") and not state["setup"].get("organization"):
+            state.pop("setup", None)
     facts = {
         "role": user["role"],
         "company": policy["name"],
@@ -21,6 +29,12 @@ def build(thread, state, user):
         },
         "workflow": "Employees upload then submit. HR reviews only submitted applications. Owner appoints HR. Company super admin configures the company.",
     }
+    if user["role"] == "super_admin":
+        from app.api.administration import accounts
+        # Current database records override old names mentioned in chat or vector recall.
+        facts["company_accounts"] = [a for a in accounts(user=user)["accounts"] if a["role"] == "owner"]
+        facts["owner_limit"] = 1
+        facts["super_admin_scope"] = "One assigned company only. Rename it in place; never switch companies. First setup invites one owner. Owner appoints HR."
     if user["role"] == "employee":
         person = onboarding.profile(user=user)
         facts["employee"] = {

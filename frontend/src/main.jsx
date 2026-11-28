@@ -113,8 +113,7 @@ function App() {
     [kind, setKind] = useState(""),
     [pending, setPending] = useState(null),
     [fresh, setFresh] = useState(-1);
-  const [drag, setDrag] = useState(false),
-    [orgs, setOrgs] = useState(null);
+  const [drag, setDrag] = useState(false);
   const [requestForm, setRequestForm] = useState(false);
   const [documentPolicy, setDocumentPolicy] = useState(null);
   const input = useRef(),
@@ -136,7 +135,6 @@ function App() {
       if (e.key === "Escape") {
         setMenu(false);
         setAgent(false);
-        setOrgs(null);
       }
     };
     document.addEventListener("pointerdown", close);
@@ -213,6 +211,13 @@ function App() {
         body: { text, ...extra },
       });
       reveal(result);
+      if (role === "super_admin") {
+        const details = await api("/api/auth/session");
+        setSession(details);
+        const config = await api("/api/organizations/current");
+        setDocumentPolicy(config);
+        setFields(config.fields || []);
+      }
       if (role === "owner" && !result.active_setup)
         setFields((await api("/api/organizations/current")).fields || []);
     });
@@ -290,16 +295,12 @@ function App() {
   const actions =
     role === "super_admin"
       ? [
-          ["Invite owner", UserPlus, () => send("Invite owner")],
-          [
-            "Configure company",
-            Settings2,
-            () =>
-              perform(async () => {
-                setOrgs(await api("/api/organizations"));
-                setMenu(false);
-              }),
-          ],
+          ...(session.user.tenant_id === "default"
+            ? [["Invite owner", UserPlus, () => send("Invite owner")]]
+            : [
+                ["Rename company", Building2, () => send("I want to rename my company")],
+                ["Configure onboarding", Settings2, () => send("Configure onboarding", { organization_id: session.user.tenant_id })],
+              ]),
           [
             "Company accounts",
             Users,
@@ -403,7 +404,7 @@ function App() {
     );
   const suggestions =
     role === "super_admin"
-      ? ["Invite an owner"]
+      ? (session.user.tenant_id === "default" ? ["Invite an owner"] : ["Show company details", "Show company accounts"])
       : employee
         ? ["My checklist", "Upload a document"]
         : role === "owner"
@@ -421,7 +422,6 @@ function App() {
             setSession(null);
             setThread(null);
             setFile(null);
-            setOrgs(null);
             setPrompt("");
             setMenu(false);
             setAgent(false);
@@ -486,7 +486,7 @@ function App() {
               </h1>
               <p className="welcome-copy">
                 {role === "super_admin"
-                  ? "Invite an owner, then shape their onboarding process together."
+                  ? (session.user.tenant_id === "default" ? "Invite your company’s owner to get started." : "Configure onboarding and manage your company’s details.")
                   : employee
                     ? "Your documents, details and next steps. All in one conversation."
                     : "Bring people onboard, from the first invitation to the final review."}
@@ -612,33 +612,6 @@ function App() {
             </section>
           )}
 
-          {orgs && (
-            <section className="organization-picker">
-              <div className="card-heading">
-                <h3>Select organization</h3>
-                <button
-                  className="icon-button"
-                  aria-label="Close organization list"
-                  onClick={() => setOrgs(null)}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              {orgs.map((o) => (
-                <button
-                  key={o.id}
-                  onClick={() => {
-                    setOrgs(null);
-                    send("Configure " + o.name, { organization_id: o.id });
-                  }}
-                >
-                  <Building2 size={15} />
-                  {o.name}
-                  <ArrowRight size={15} />
-                </button>
-              ))}
-            </section>
-          )}
           <ErrorLine text={error} />
           {file && (
             <div className="file-chip">
